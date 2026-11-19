@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The first frame matches the Compose background (surfaceContainer), so opening a
+         screen never flashes a different colour. -->
+    <style name="Theme.IiTools" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/system_surface_container_light</item>
+    </style>
+</resources>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="wr_card">@android:color/system_neutral1_900</color>
+    <color name="wr_text">@android:color/system_neutral2_200</color>
+    <color name="wr_accent">@android:color/system_accent1_200</color>
+    <color name="wr_on_accent">@android:color/system_accent1_800</color>
+    <color name="wr_inner">@android:color/system_neutral1_800</color>
+    <color name="wr_tonal">@android:color/system_accent2_700</color>
+    <color name="wr_on_tonal">@android:color/system_accent2_100</color>
+    <color name="wr_surface_variant">@android:color/system_neutral2_700</color>
+    <color name="wr_error">#FFF2B8B5</color>
+</resources>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The ii shell logo's background (assets/icons/ii-p3drovfx.png). -->
+    <color name="ic_launcher_background">#FF201332</color>
+</resources>

@@ -1,0 +1,609 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Routines: leaving and arriving home are Wi-Fi changes. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Normal permission: only used when "Use the PC's wallpaper" is on. -->
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
+    <!-- The webcam: the camera, kept in a camera foreground service while streaming. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <!-- Lets the PC start the microphone from the background without tapping a notification. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <!-- The link's foreground service; CHANGE_NETWORK_STATE is its type's prerequisite. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <!-- The webcam holds Wi-Fi in low-latency mode while it streams over the network. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+    <!-- Stelnet Link: the socket to the paired PC on the LAN (Android 17 gates the LAN
+         behind ACCESS_LOCAL_NETWORK, a runtime permission). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- In-app updater: hands the downloaded release APK to the system installer. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+    <!-- Staying connected in the background: Doze would cut the link otherwise. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Calls (Fase 1.4): the call state, answer / end, and placing a call from the PC. -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <!-- Screenshots (Fase 2.7) and Phone gallery: photos and videos for the PC. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
+    <!-- Phone data (Fase 2.4): contacts with photos and Bluetooth peripheral battery for the PC. -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Phone calendar for the shell's Timetable, and event dots on the date widgets. -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <!-- Optional: the PC creates and edits the phone's events. -->
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- The PC browses the phone's storage (SFTP), as with KDE Connect. -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <!-- PC live updates (Fase 2.6): Android 16 Live Updates on the lock screen. -->
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+    <!-- App labels/icons for the apps that post live notifications. -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <uses-permission
+        android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+
+    <application
+        android:name=".IiToolsApp"
+        android:enableOnBackInvokedCallback="true"
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:theme="@style/Theme.IiTools">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
+        </activity>
+
+        <!-- The shortcuts' target: runs one PC action without showing anything, so the
+             phone's own routines (Modes and Routines, launcher shortcuts) can drive the PC.
+             Not exported: shortcuts reach it through the launcher, other apps cannot. -->
+        <activity
+            android:name=".routines.RunActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.IiTools.Invisible" />
+
+        <!-- The same for shortcuts the builder made, which other apps (Modes and Routines)
+             launch as plain intents: exported, so it checks this install's token. -->
+        <activity
+            android:name=".routines.ExternalActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.IiTools.Invisible" />
+
+        <!-- "Create shortcut": any action of the PC, with its value. -->
+        <activity
+            android:name=".CreateShortcutActivity"
+            android:exported="true"
+            android:label="@string/shortcut_builder_label"
+            android:icon="@drawable/rounded_routine">
+            <intent-filter>
+                <action android:name="android.intent.action.CREATE_SHORTCUT" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".RuleEditorActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".RoutinesActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".HomeEditActivity"
+            android:exported="false" />
+
+        <!-- One activity per screen: the system's own transitions and predictive back. -->
+        <activity
+            android:name=".LinkActivity"
+            android:exported="true"
+            android:launchMode="singleTop">
+            <!-- Pairing links: from the QR code, or sent by the shell over KDE Connect. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="iilink" android:host="pair" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".LiveActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".RemoteActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".AudioActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".MediaModeActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape" />
+
+        <activity
+            android:name=".CallsActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".NotifsActivity"
+            android:exported="false" />
+
+        <!-- The clipboard tile opens this for a moment: only a focused window may read
+             the clipboard. -->
+        <!-- Opens a page the PC was playing, from a notification, and pauses the PC. -->
+        <activity
+            android:name=".media.HandoffActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.IiTools.Invisible" />
+
+        <activity
+            android:name=".clip.ClipActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.IiTools.Invisible" />
+
+        <activity
+            android:name=".ClipboardActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ShotsActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".GalleryActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".PhoneDataActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".CalendarActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".DrawActivity"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
+            android:exported="false" />
+
+        <activity
+            android:name=".PresenterActivity"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
+            android:exported="false" />
+
+        <activity
+            android:name=".TouchpadActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
+            android:windowSoftInputMode="adjustResize"
+            android:exported="false" />
+
+        <activity
+            android:name=".PerfActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
+            android:exported="false" />
+
+        <activity
+            android:name=".ToolsActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".UpdateActivity"
+            android:exported="false" />
+
+        <!-- The webcam, held sideways like the camera it stands for. singleTop: the
+             "start" notification reaches an open screen instead of stacking another. -->
+        <activity
+            android:name=".CameraActivity"
+            android:launchMode="singleTop"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
+            android:exported="false" />
+
+        <!-- The microphone. singleTop: the "start" notification reaches an open screen. -->
+        <activity
+            android:name=".MicActivity"
+            android:launchMode="singleTop"
+            android:exported="false" />
+
+        <!-- Transparent trampoline to bring the app into foreground state when the PC asks
+             for the microphone while Display over other apps is granted. -->
+        <activity
+            android:name=".mic.MicStartActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:showWhenLocked="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.IiTools.Invisible" />
+
+        <activity
+            android:name=".SecondScreenViewActivity"
+            android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
+            android:windowSoftInputMode="adjustResize"
+            android:excludeFromRecents="true"
+            android:exported="false" />
+
+        <activity
+            android:name=".SecondScreenActivity"
+            android:exported="false" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <!-- In the share sheet as "Send to PC": text, links, images and files. -->
+        <activity
+            android:name=".ShareActivity"
+            android:exported="true"
+            android:label="@string/share_label">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+        </activity>
+
+        <!-- In the share sheet as "Set on PC" for images. -->
+        <activity
+            android:name=".WallpaperActivity"
+            android:exported="true"
+            android:label="@string/wallpaper_share">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>
+
+        <!-- Turning into dock mode rotates the screen: keep the deck, its page and its
+             drag, instead of rebuilding the activity. -->
+        <activity
+            android:name=".DeckActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
+            android:exported="false" />
+
+        <!-- Fetch the scanner module with the app rather than at first scan. -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="barcode_ui" />
+
+        <!-- The deck widget (Fase 2.1): taps come back here as broadcasts. -->
+        <receiver
+            android:name=".deck.DeckWidget"
+            android:exported="false"
+            android:label="@string/widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/deck_widget_info" />
+        </receiver>
+
+        <!-- The shell's desktop widgets on the home screen (dev.ii.tools.widgets). -->
+        <receiver
+            android:name=".widgets.PosterMediaWidget"
+            android:exported="false"
+            android:label="@string/wl_poster">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_poster" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.DeckMediaWidget"
+            android:exported="false"
+            android:label="@string/wl_deck">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_deck_media" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.HaloMediaWidget"
+            android:exported="false"
+            android:label="@string/wl_halo">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_halo" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.CoverMediaWidget"
+            android:exported="false"
+            android:label="@string/wl_cover">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_cover" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.MonthTallWidget"
+            android:exported="false"
+            android:label="@string/wl_month_tall">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_month_tall" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.BloomClockWidget"
+            android:exported="false"
+            android:label="@string/wl_bloom">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_bloom" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.WeatherStripWidget"
+            android:exported="false"
+            android:label="@string/wl_weather_strip">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_weather_strip" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.WeatherMonolithWidget"
+            android:exported="false"
+            android:label="@string/wl_weather_monolith">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_weather_monolith" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.DateTypeWidget"
+            android:exported="false"
+            android:label="@string/wl_date_type">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_date_type" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.DateShapesWidget"
+            android:exported="false"
+            android:label="@string/wl_date_shapes">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_date_shapes" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.DateBannerWidget"
+            android:exported="false"
+            android:label="@string/wl_date_banner">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_date_banner" />
+        </receiver>
+
+        <!-- Date widgets: midnight, clock, zone and language changes. -->
+        <receiver
+            android:name=".widgets.DateTick"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.LOCALE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Transport keys on the media widgets. -->
+        <receiver
+            android:name=".widgets.MediaWidgetAction"
+            android:exported="false" />
+
+        <!-- Keeps the app alive while "Stay connected" is on. -->
+        <service
+            android:name=".link.LinkService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
+
+        <!-- Copied text to the PC with no app open (optional, enabled by the user). -->
+        <service
+            android:name=".camera.WebcamService"
+            android:exported="false"
+            android:foregroundServiceType="camera" />
+
+        <service
+            android:name=".mic.MicService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
+        <service
+            android:name=".clip.ClipWatchService"
+            android:exported="false"
+            android:label="@string/clip_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/clip_watch_service" />
+        </service>
+
+        <!-- "Found it" on the find-my-phone ring. -->
+        <receiver
+            android:name=".pcactions.FoundReceiver"
+            android:exported="false" />
+
+        <!-- Buttons on the PC's live updates. -->
+        <receiver
+            android:name=".pclive.PcLiveAction"
+            android:exported="false" />
+
+        <!-- Buttons on the PC's media notification. -->
+        <receiver
+            android:name=".media.PcMediaAction"
+            android:exported="false" />
+
+        <activity
+            android:name=".PcLinkActivity"
+            android:exported="false" />
+
+        <!-- Quick Settings tiles (Fase 2.1): the shell's toggles from the panel. -->
+        <service
+            android:name=".tiles.LockTile"
+            android:exported="true"
+            android:icon="@drawable/rounded_lock"
+            android:label="@string/tile_lock"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data android:name="android.service.quicksettings.TOGGLEABLE_TILE" android:value="true" />
+        </service>
+
+        <service
+            android:name=".tiles.LockAodTile"
+            android:exported="true"
+            android:icon="@drawable/rounded_screen_lock_portrait"
+            android:label="@string/tile_aod"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data android:name="android.service.quicksettings.TOGGLEABLE_TILE" android:value="true" />
+        </service>
+
+        <service
+            android:name=".tiles.MediaModeTile"
+            android:exported="true"
+            android:icon="@drawable/rounded_music_note"
+            android:label="@string/tile_media"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data android:name="android.service.quicksettings.TOGGLEABLE_TILE" android:value="true" />
+        </service>
+
+        <service
+            android:name=".tiles.ClipTile"
+            android:exported="true"
+            android:icon="@drawable/rounded_content_paste"
+            android:label="@string/tile_clip"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.WakeTile"
+            android:exported="true"
+            android:icon="@drawable/rounded_power_settings_new"
+            android:label="@string/tile_wake"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.PresetTile"
+            android:exported="true"
+            android:icon="@drawable/rounded_palette"
+            android:label="@string/tile_preset"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data android:name="android.service.quicksettings.TOGGLEABLE_TILE" android:value="true" />
+        </service>
+
+        <service
+            android:name=".live.LiveListener"
+            android:label="@string/live_title"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>

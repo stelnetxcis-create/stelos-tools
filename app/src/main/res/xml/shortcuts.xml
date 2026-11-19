@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Direct Share: "Send to PC" in the top row of every app's share sheet (the dynamic
+         shortcut with this category is published by ShortcutKit). -->
+    <share-target android:targetClass="dev.ii.tools.ShareActivity">
+        <data android:mimeType="*/*" />
+        <category android:name="dev.ii.tools.category.SHARE_PC" />
+    </share-target>
+    <shortcut
+        android:shortcutId="pc_lock"
+        android:enabled="true"
+        android:icon="@drawable/rounded_lock"
+        android:shortcutShortLabel="@string/shortcut_lock">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="net.stelnet.tools"
+            android:targetClass="dev.ii.tools.routines.RunActivity">
+            <extra android:name="a" android:value="lock" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="pc_lockAod"
+        android:enabled="true"
+        android:icon="@drawable/rounded_bedtime"
+        android:shortcutShortLabel="@string/shortcut_lock_aod">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="net.stelnet.tools"
+            android:targetClass="dev.ii.tools.routines.RunActivity">
+            <extra android:name="a" android:value="lockAod" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="pc_pauseMedia"
+        android:enabled="true"
+        android:icon="@drawable/rounded_pause"
+        android:shortcutShortLabel="@string/shortcut_pause_media">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="net.stelnet.tools"
+            android:targetClass="dev.ii.tools.routines.RunActivity">
+            <extra android:name="a" android:value="pauseMedia" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="pc_wake"
+        android:enabled="true"
+        android:icon="@drawable/rounded_power_settings_new"
+        android:shortcutShortLabel="@string/shortcut_wake">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="net.stelnet.tools"
+            android:targetClass="dev.ii.tools.routines.RunActivity">
+            <extra android:name="a" android:value="wake" />
+        </intent>
+    </shortcut>
+</shortcuts>

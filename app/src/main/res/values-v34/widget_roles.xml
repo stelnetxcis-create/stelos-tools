@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="wr_card">@android:color/system_surface_container_high_light</color>
+    <color name="wr_text">@android:color/system_on_surface_variant_light</color>
+    <color name="wr_accent">@android:color/system_primary_light</color>
+    <color name="wr_on_accent">@android:color/system_on_primary_light</color>
+    <color name="wr_inner">@android:color/system_surface_container_highest_light</color>
+    <color name="wr_tonal">@android:color/system_secondary_container_light</color>
+    <color name="wr_on_tonal">@android:color/system_on_secondary_container_light</color>
+    <color name="wr_surface_variant">@android:color/system_surface_variant_light</color>
+    <color name="wr_error">@android:color/system_error_light</color>
+</resources>

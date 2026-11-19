@@ -1,0 +1,10 @@
+# Startup and scrolling of the Compose UI, precompiled at install instead of interpreted at first
+# use. Wildcards on purpose: the whole UI is small, and a Home scroll touches most of Compose.
+HSPLandroidx/compose/**;->**(**)**
+HSPLandroidx/lifecycle/**;->**(**)**
+HSPLandroidx/activity/**;->**(**)**
+HSPLandroidx/core/**;->**(**)**
+HSPLandroidx/graphics/shapes/**;->**(**)**
+HSPLdev/ii/tools/**;->**(**)**
+Landroidx/compose/**;
+Ldev/ii/tools/**;

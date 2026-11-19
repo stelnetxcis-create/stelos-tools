@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The deck widget's colours: the system's Material You palette (a widget cannot use
+     the Compose scheme), surface container and secondary container roles. -->
+<resources>
+    <color name="widget_bg">@android:color/system_neutral1_50</color>
+    <color name="widget_key">@android:color/system_accent2_100</color>
+    <color name="widget_on_key">@android:color/system_accent2_900</color>
+</resources>

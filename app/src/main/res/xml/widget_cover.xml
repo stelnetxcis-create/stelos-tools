@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The shell's 1x2 widget: content keeps the shell's aspect ratio at any size. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/wl_cover_d"
+    android:initialLayout="@layout/widget_shell"
+    android:minWidth="110dp"
+    android:minHeight="250dp"
+    android:minResizeWidth="55dp"
+    android:minResizeHeight="125dp"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="2"
+    android:targetCellHeight="4"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />

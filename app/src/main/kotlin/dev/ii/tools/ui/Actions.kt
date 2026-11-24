@@ -3,6 +3,7 @@ package dev.ii.tools.ui
 import android.os.SystemClock
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
@@ -17,12 +18,10 @@ import dev.ii.tools.R
 import dev.ii.tools.link.LinkHub
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 
 /** Every screen the app opens, mapped to its activity in MainActivity. */
 enum class Dest {
-    SETTINGS, HOME_EDIT, REMOTE, AUDIO, DECK, WALLPAPER, TOOLS, TOUCHPAD, DRAW, PRESENTER, PERF,
+    SETTINGS, HOME_EDIT, REMOTE, AUDIO, DECK, WALLPAPER, TOOLS, TOUCHPAD, DRAW, PRESENTER, PERF, FOCUS, VOICE,
     CAMERA, MIC, SECOND_SCREEN, LIVE, NOTIFS, CLIPBOARD, SHOTS, GALLERY, PHONE_DATA, CALENDAR, PC_LINK, CALLS, ROUTINES, MEDIA_MODE, UPDATE,
 }
 
@@ -57,25 +56,30 @@ fun rememberActionRunner(): ActionRunner {
 }
 
 /**
- * A clock that ticks every [periodMs] while the screen is resumed and [enabled], for
- * values that count by themselves (a track's position, a countdown). Nothing ticks in
- * the background.
+ * A clock [State] that ticks every [periodMs] while the screen is resumed and [enabled], for
+ * values that count by themselves (a track's position, a countdown). Pass down and read only in
+ * leaf composables so the whole screen doesn't recompose every tick.
  */
 @Composable
-fun rememberClock(enabled: Boolean, periodMs: Long = 1_000, read: () -> Long = SystemClock::elapsedRealtime): Long {
+fun rememberClockState(enabled: Boolean, periodMs: Long = 1_000, read: () -> Long = SystemClock::elapsedRealtime): State<Long> {
     val owner = LocalLifecycleOwner.current
-    var now by remember { mutableLongStateOf(read()) }
-    LaunchedEffect(enabled, owner) {
-        now = read()
+    val now = remember { mutableLongStateOf(read()) }
+    LaunchedEffect(enabled, periodMs, owner) {
+        now.longValue = read()
         if (enabled) owner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             while (true) {
-                now = read()
-                delay(periodMs - now % periodMs)
+                val t = read()
+                now.longValue = t
+                delay((periodMs - t % periodMs).coerceAtLeast(1L))
             }
         }
     }
     return now
 }
+
+@Composable
+fun rememberClock(enabled: Boolean, periodMs: Long = 1_000, read: () -> Long = SystemClock::elapsedRealtime): Long =
+    rememberClockState(enabled, periodMs, read).value
 
 /** mm:ss, or h:mm:ss past an hour. */
 fun clockText(seconds: Long): String {

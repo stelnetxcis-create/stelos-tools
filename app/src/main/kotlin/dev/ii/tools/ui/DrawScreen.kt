@@ -14,8 +14,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,6 +27,7 @@ import androidx.compose.material3.FilledIconToggleButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -52,6 +55,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -60,6 +64,7 @@ import dev.ii.tools.R
 import dev.ii.tools.draw.DrawPad
 import dev.ii.tools.link.LinkHub
 import dev.ii.tools.link.LinkStatus
+import dev.ii.tools.ui.theme.Expressive
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 
@@ -81,9 +86,10 @@ fun DrawScreen(onBack: () -> Unit) {
     val status by LinkHub.status.collectAsStateWithLifecycle()
     val shell by LinkHub.shell.collectAsStateWithLifecycle()
     val state by DrawPad.state.collectAsStateWithLifecycle()
-    val disabled by DrawPad.disabled.collectAsStateWithLifecycle()
-    val online = status is LinkStatus.Online && shell != null
-    val supported = shell?.caps?.contains("draw") == true
+    val error by DrawPad.error.collectAsStateWithLifecycle()
+    val currentShell = shell
+    val online = status is LinkStatus.Online && currentShell != null
+    val supported = currentShell?.caps?.contains("draw") == true
 
     val strokes = remember { mutableStateListOf<LocalStroke>() }
     // Undone strokes, for redo: the echo follows the PC's history.
@@ -110,6 +116,7 @@ fun DrawScreen(onBack: () -> Unit) {
     }
 
     val s = state
+    val canDraw = online && supported && s != null && s.open && error == null
 
     Row(Modifier.fillMaxSize().background(cs.surface).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         // ── Tools ──────────────────────────────────────────────────────────
@@ -135,7 +142,7 @@ fun DrawScreen(onBack: () -> Unit) {
                 val on = if (id == "eraser") s?.eraser == true else s?.eraser != true && s?.tool == id
                 FilledIconToggleButton(
                     checked = on,
-                    enabled = s != null,
+                    enabled = canDraw,
                     onCheckedChange = {
                         haptics.performHapticFeedback(HapticFeedbackType.ToggleOn)
                         DrawPad.action("tool", "tool", id)
@@ -151,7 +158,7 @@ fun DrawScreen(onBack: () -> Unit) {
                         .clip(CircleShape)
                         .background(c)
                         .border(if (chosen) 3.dp else 1.dp, if (chosen) cs.primary else cs.outlineVariant, CircleShape)
-                        .clickable {
+                        .clickable(enabled = canDraw) {
                             haptics.performHapticFeedback(HapticFeedbackType.VirtualKey)
                             DrawPad.action("color", "color", hex)
                         },
@@ -166,8 +173,8 @@ fun DrawScreen(onBack: () -> Unit) {
                     .aspectRatio(s?.aspect ?: (16f / 9f), matchHeightConstraintsFirst = true)
                     .clip(RoundedCornerShape(16.dp))
                     .background(cs.surfaceContainer)
-                    .pointerInput(online, supported, s != null) {
-                        if (!online || !supported || s == null) return@pointerInput
+                    .pointerInput(canDraw) {
+                        if (!canDraw) return@pointerInput
                         awaitEachGesture {
                             val down = awaitFirstDown()
                             val w = size.width.toFloat().coerceAtLeast(1f)
@@ -232,15 +239,46 @@ fun DrawScreen(onBack: () -> Unit) {
                         )
                     }
                 }
-                val hint = when {
-                    disabled -> stringResource(R.string.draw_off)
-                    !online -> stringResource(R.string.touchpad_offline)
-                    !supported -> stringResource(R.string.draw_off)
-                    strokes.isEmpty() && live == null -> stringResource(R.string.draw_hint)
-                    else -> null
-                }
-                if (hint != null) {
-                    Text(hint, color = cs.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, modifier = Modifier.padding(32.dp))
+                when {
+                    !online -> Text(
+                        stringResource(R.string.touchpad_offline),
+                        color = cs.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(32.dp),
+                    )
+                    error == "liveDraw" -> DrawWarningCard(
+                        title = stringResource(R.string.draw_live_off_title),
+                        body = stringResource(R.string.draw_live_off_body),
+                        actionLabel = stringResource(R.string.draw_turn_on),
+                        actionIcon = R.drawable.rounded_power_settings_new,
+                        onAction = { DrawPad.enableLiveDraw() },
+                    )
+                    error == "disabled" -> DrawWarningCard(
+                        title = stringResource(R.string.draw_pad_off_title),
+                        body = stringResource(R.string.draw_pad_off_body),
+                    )
+                    !supported || error != null -> Text(
+                        stringResource(R.string.draw_off),
+                        color = cs.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(32.dp),
+                    )
+                    s != null && !s.open -> DrawWarningCard(
+                        title = stringResource(R.string.draw_closed_title),
+                        body = stringResource(R.string.draw_closed_body),
+                        actionLabel = stringResource(R.string.draw_reopen),
+                        actionIcon = R.drawable.rounded_refresh,
+                        onAction = { DrawPad.start() },
+                    )
+                    strokes.isEmpty() && live == null -> Text(
+                        stringResource(R.string.draw_hint),
+                        color = cs.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(32.dp),
+                    )
                 }
             }
         }
@@ -253,7 +291,7 @@ fun DrawScreen(onBack: () -> Unit) {
                     DrawPad.action("undo")
                     strokes.removeLastOrNull()?.let { undone.add(it) }
                 },
-                enabled = s?.canUndo == true || strokes.isNotEmpty(),
+                enabled = canDraw && (s?.canUndo == true || strokes.isNotEmpty()),
                 colors = IconButtonDefaults.iconButtonColors(containerColor = cs.surfaceContainer),
             ) { Icon(painterResource(R.drawable.rounded_undo), stringResource(R.string.draw_undo)) }
             IconButton(
@@ -262,7 +300,7 @@ fun DrawScreen(onBack: () -> Unit) {
                     DrawPad.action("redo")
                     undone.removeLastOrNull()?.let { strokes.add(it) }
                 },
-                enabled = s?.canRedo == true || undone.isNotEmpty(),
+                enabled = canDraw && (s?.canRedo == true || undone.isNotEmpty()),
                 colors = IconButtonDefaults.iconButtonColors(containerColor = cs.surfaceContainer),
             ) { Icon(painterResource(R.drawable.rounded_redo), stringResource(R.string.draw_redo)) }
             IconButton(
@@ -272,9 +310,51 @@ fun DrawScreen(onBack: () -> Unit) {
                     strokes.clear()
                     undone.clear()
                 },
-                enabled = s != null,
+                enabled = canDraw,
                 colors = IconButtonDefaults.iconButtonColors(containerColor = cs.errorContainer, contentColor = cs.onErrorContainer),
             ) { Icon(painterResource(R.drawable.rounded_delete), stringResource(R.string.draw_clear)) }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun DrawWarningCard(
+    title: String,
+    body: String,
+    actionLabel: String? = null,
+    actionIcon: Int? = null,
+    onAction: (() -> Unit)? = null,
+) {
+    val cs = MaterialTheme.colorScheme
+    ExpressiveCard(
+        color = cs.errorContainer,
+        contentColor = cs.onErrorContainer,
+        radius = Radius.row,
+        modifier = Modifier.widthIn(max = 460.dp).padding(20.dp),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            ShapeBox(MaterialShapes.Cookie9Sided, size = 40.dp, color = cs.error) {
+                Icon(painterResource(R.drawable.rounded_draw), null, tint = cs.onError, modifier = Modifier.size(22.dp))
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, style = Expressive.title(16.sp), color = cs.onErrorContainer)
+                Text(body, style = MaterialTheme.typography.bodyMedium, color = cs.onErrorContainer.copy(alpha = 0.85f))
+            }
+            if (actionLabel != null && onAction != null) {
+                FilledPill(
+                    text = actionLabel,
+                    onClick = onAction,
+                    icon = actionIcon,
+                    height = 40.dp,
+                    container = cs.error,
+                    content = cs.onError,
+                )
+            }
         }
     }
 }

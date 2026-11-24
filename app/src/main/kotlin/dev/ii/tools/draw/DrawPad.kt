@@ -29,17 +29,23 @@ data class DrawState(
 object DrawPad {
     private val _state = MutableStateFlow<DrawState?>(null)
     val state: StateFlow<DrawState?> = _state.asStateFlow()
-    private val _disabled = MutableStateFlow(false)
-    val disabled: StateFlow<Boolean> = _disabled.asStateFlow()
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
 
     fun start() {
-        _disabled.value = false
+        _error.value = null
         LinkHub.sendJson(JSONObject().put("t", "draw").put("a", "start"))
+    }
+
+    fun enableLiveDraw() {
+        _error.value = null
+        LinkHub.sendJson(JSONObject().put("t", "draw").put("a", "enableLiveDraw"))
     }
 
     fun stop() {
         LinkHub.sendJson(JSONObject().put("t", "draw").put("a", "stop"))
         _state.value = null
+        _error.value = null
     }
 
     /** [phase] down, move or up; points `[x, y, pressure]`, x and y in 0–1. */
@@ -56,10 +62,13 @@ object DrawPad {
     }
 
     fun onMessage(m: JSONObject) {
-        if (m.optString("err") == "disabled") {
-            _disabled.value = true
+        val err = m.optString("err").ifEmpty { null }
+        if (err != null) {
+            _error.value = err
+            _state.value = null
             return
         }
+        _error.value = null
         val palette = m.optJSONArray("palette")
         _state.value = DrawState(
             open = m.optBoolean("open"),

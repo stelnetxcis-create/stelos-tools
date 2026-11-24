@@ -7,33 +7,33 @@ import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -57,9 +57,10 @@ import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.Stable
-import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -67,20 +68,23 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -91,12 +95,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.ii.tools.R
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import dev.ii.tools.camera.Webcam
 import dev.ii.tools.camera.WebcamPhase
 import dev.ii.tools.clip.ClipSync
+import dev.ii.tools.focus.FocusHub
+import dev.ii.tools.focus.PhaseLabels
 import dev.ii.tools.link.LinkHub
 import dev.ii.tools.link.LinkStatus
 import dev.ii.tools.link.Look
@@ -111,15 +116,15 @@ import dev.ii.tools.mic.Mic
 import dev.ii.tools.mic.MicPhase
 import dev.ii.tools.pclive.PcLive
 import dev.ii.tools.pclive.PcLiveItem
+import dev.ii.tools.R
 import dev.ii.tools.ui.theme.Expressive
 import dev.ii.tools.update.AppUpdate
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
+import dev.ii.tools.voice.VoicePrefs
 import kotlin.math.abs
 import kotlin.math.roundToInt
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import org.json.JSONObject
 
 /**
  * The home: a short dashboard of the PC. Not paired, it is the pairing screen; paired
@@ -140,9 +145,14 @@ fun HomeScreen(
     val shell by LinkHub.shell.collectAsStateWithLifecycle()
     val update by AppUpdate.state.collectAsStateWithLifecycle()
     val layout by HomeLayoutStore.layout(ctx).collectAsStateWithLifecycle()
+    val voiceEnabled by VoicePrefs.enabled(ctx).collectAsStateWithLifecycle()
     val scanner = rememberPairScanner()
     val network = rememberNetworkPermission()
-    val online = status is LinkStatus.Online && shell != null
+    // Capture link StateFlow values as locals so LazyColumn lambdas see a consistent snapshot.
+    val currentStatus = status
+    val currentPc = pc
+    val currentShell = shell
+    val online = currentStatus is LinkStatus.Online && currentShell != null
 
     var editing by rememberSaveable { mutableStateOf(startEditing) }
     val exitEdit = {
@@ -151,7 +161,7 @@ fun HomeScreen(
     BackHandler(editing) { exitEdit() }
 
     // The PC samples its load only while a screen shows it.
-    val showsPerf = online && shell?.caps?.contains("perf") == true && HomeCards.PERF in layout.visible
+    val showsPerf = online && currentShell?.caps?.contains("perf") == true && HomeCards.PERF in layout.visible
     LifecycleResumeEffect(showsPerf) {
         if (showsPerf) LinkHub.subscribePerf(true)
         onPauseOrDispose { if (showsPerf) LinkHub.subscribePerf(false) }
@@ -223,8 +233,8 @@ fun HomeScreen(
                 editDashboard(
                     visibleCards = visibleCards,
                     hiddenCards = hiddenCards,
-                    pc = pc,
-                    shell = shell,
+                    pc = currentPc,
+                    shell = currentShell,
                     online = online,
                     clipHistory = clipHistory,
                     dragState = dragState,
@@ -245,7 +255,7 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item(key = "bar") {
-                    HomeBar(pc = pc, scanner = scanner, onOpen = onOpen)
+                    HomeBar(pc = currentPc, scanner = scanner, onOpen = onOpen)
                 }
                 val latestUpdate = update.latest
                 if (update.visibleOnHome && latestUpdate != null) {
@@ -257,11 +267,10 @@ fun HomeScreen(
                         )
                     }
                 }
-                val current = pc
                 when {
-                    current == null -> item(key = "pair") { PairContent(status, scanner, network) }
-                    online -> dashboard(layout.visible, current, shell!!, clipHistory, onOpen)
-                    else -> away(current, status, onOpen)
+                    currentPc == null -> item(key = "pair") { PairContent(currentStatus, scanner, network) }
+                    currentStatus is LinkStatus.Online && currentShell != null -> dashboard(layout.visible, currentPc, currentShell, clipHistory, voiceEnabled, onOpen)
+                    else -> away(currentPc, currentStatus, onOpen)
                 }
             }
         }
@@ -374,6 +383,7 @@ private fun LazyListScope.dashboard(
     pc: PairedPc,
     shell: ShellInfo,
     clipHistory: Boolean,
+    voiceEnabled: Boolean,
     onOpen: (Dest) -> Unit,
 ) {
     order.forEach { id ->
@@ -400,9 +410,18 @@ private fun LazyListScope.dashboard(
             HomeCards.DISPLAY -> if ("display" in shell.caps) item(key = HomeCards.DISPLAY) { HomeDisplay() }
             HomeCards.WEBCAM -> item(key = HomeCards.WEBCAM) { WebcamCard(onOpen) }
             HomeCards.PERF -> if ("perf" in shell.caps) item(key = HomeCards.PERF) { PerfCard(onOpen) }
+            HomeCards.FOCUS -> if ("focus" in shell.caps) item(key = HomeCards.FOCUS) { FocusCard(onOpen) }
+            HomeCards.VOICE -> if ("voice" in shell.caps && voiceEnabled) item(key = HomeCards.VOICE) { VoiceCard(onOpen) }
             HomeCards.MIC -> item(key = HomeCards.MIC) { MicCard(onOpen) }
             // Last by default: the PC's clipboard history, its list in a bottom sheet.
             HomeCards.CLIP -> if (clipHistory) item(key = HomeCards.CLIP) { ClipHistoryCard(onOpen) }
+            HomeCards.WORKSPACES -> if ("remote" in shell.caps) item(key = HomeCards.WORKSPACES) { WorkspacesCard(onOpen) }
+            HomeCards.MODES -> item(key = HomeCards.MODES) { ModesCard(onOpen) }
+            HomeCards.PRESETS -> if ("remote" in shell.caps) item(key = HomeCards.PRESETS) { PresetsCard(onOpen) }
+            HomeCards.TOUCHPAD -> item(key = HomeCards.TOUCHPAD) { TouchpadCard("touchpad" in shell.caps, onOpen) }
+            HomeCards.PRESENTER -> item(key = HomeCards.PRESENTER) { PresenterCard("present" in shell.caps, onOpen) }
+            HomeCards.DECK -> item(key = HomeCards.DECK) { DeckCard(onOpen) }
+            HomeCards.POWER -> if ("power" in shell.caps) item(key = HomeCards.POWER) { PowerCard() }
         }
     }
 }
@@ -1143,6 +1162,265 @@ private fun PerfCard(onOpen: (Dest) -> Unit) {
     }
 }
 
+/**
+ * Focus & timers: the clock app's ring with the one thing that counts, played and paused
+ * from here; idle, the pomodoro and the stopwatch start with one tap. A ringing alarm turns
+ * the card to the error family with Stop and Snooze.
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun FocusCard(onOpen: (Dest) -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val haptics = LocalHapticFeedback.current
+    val items by FocusHub.items.collectAsStateWithLifecycle()
+    val labels = PhaseLabels(
+        focus = stringResource(R.string.focus_phase_focus),
+        shortBreak = stringResource(R.string.focus_phase_short_break),
+        longBreak = stringResource(R.string.focus_phase_long_break),
+    )
+    val stopwatchTitle = stringResource(R.string.focus_stopwatch)
+    val alarm = items.firstOrNull { it.id == "alarm" }
+    val running = remember(items) { items.filter { it.id == "pomodoro" || it.id == "stopwatch" || (it.kind == "timer" && it.id != "alarm") } }
+    // The pomodoro leads, then the countdown closest to its end, then the stopwatch.
+    val primary = running.firstOrNull { it.id == "pomodoro" }
+        ?: running.filter { it.kind == "timer" }.minByOrNull { if (it.paused) Long.MAX_VALUE else it.end }
+        ?: running.firstOrNull()
+    val clock = rememberClockState(enabled = running.any { !it.paused }, read = System::currentTimeMillis)
+    val now = { clock.value }
+
+    if (alarm != null) {
+        ExpressiveCard(cs.errorContainer, cs.onErrorContainer, onClick = { onOpen(Dest.FOCUS) }) {
+            Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    StateShape(active = true, size = 56.dp, color = cs.error, on = MaterialShapes.Cookie9Sided) {
+                        Icon(painterResource(R.drawable.rounded_alarm), null, tint = cs.onError, modifier = Modifier.size(28.dp))
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Caption(stringResource(R.string.focus_alarm_ringing))
+                        Text(alarm.text.ifEmpty { alarm.title }, style = Expressive.wide(22.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledPill(stringResource(R.string.focus_stop), { FocusHub.alarm("stop") }, Modifier.weight(1f), icon = R.drawable.rounded_alarm_off, container = cs.error, content = cs.onError)
+                    TonalPill(stringResource(R.string.focus_snooze), { FocusHub.alarm("snooze") }, Modifier.weight(1f), icon = R.drawable.rounded_snooze, height = 52.dp)
+                }
+            }
+        }
+        return
+    }
+
+    ExpressiveCard(Layer.pane, cs.onSurface, onClick = { onOpen(Dest.FOCUS) }) {
+        Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Caption(stringResource(R.string.focus_title), color = cs.onSurfaceVariant, modifier = Modifier.weight(1f))
+                if (running.size > 1) Text(stringResource(R.string.focus_card_more, running.size - 1), style = Expressive.live(13.sp), color = cs.onSurfaceVariant, modifier = Modifier.padding(end = 8.dp))
+                Icon(painterResource(R.drawable.rounded_arrow_forward), null, tint = cs.onSurfaceVariant, modifier = Modifier.size(22.dp))
+            }
+            if (primary == null) {
+                Text(stringResource(R.string.focus_card_idle), style = Expressive.title(16.sp), color = cs.onSurfaceVariant)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledPill(stringResource(R.string.focus_pomodoro), { FocusHub.pomodoro("start", labels) }, Modifier.weight(1f), icon = R.drawable.rounded_psychiatry)
+                    TonalPill(stringResource(R.string.focus_stopwatch), { FocusHub.stopwatch("start", stopwatchTitle) }, Modifier.weight(1f), icon = R.drawable.rounded_timer, height = 52.dp)
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Box(Modifier.size(92.dp), contentAlignment = Alignment.Center) {
+                        ClockProgressRing(
+                            value = { focusFraction(primary, now()) },
+                            wavy = !primary.paused,
+                            indicatorColor = if (primary.paused) cs.outline else cs.primary,
+                            trackColor = cs.secondaryContainer,
+                            modifier = Modifier.fillMaxSize(),
+                            thickness = 8.dp,
+                            waves = 10,
+                        )
+                        Icon(
+                            painterResource(
+                                when {
+                                    primary.id == "stopwatch" -> R.drawable.rounded_timer
+                                    primary.phase == "break" || primary.phase == "longBreak" -> R.drawable.rounded_coffee
+                                    primary.id == "pomodoro" -> R.drawable.rounded_psychiatry
+                                    else -> R.drawable.rounded_hourglass_top
+                                },
+                            ),
+                            null,
+                            tint = if (primary.paused) cs.onSurfaceVariant else cs.primary,
+                            modifier = Modifier.size(30.dp),
+                        )
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        FocusCardTime(primary, now)
+                        val sub = when {
+                            primary.id == "pomodoro" && primary.cycles > 0 ->
+                                "${labels.labelFor(primary.phase)} · ${primary.cycle % primary.cycles + 1}/${primary.cycles}"
+                            primary.id == "pomodoro" -> labels.labelFor(primary.phase)
+                            else -> primary.title
+                        }
+                        Text(
+                            if (primary.paused) "$sub · ${stringResource(R.string.home_paused)}" else sub,
+                            style = if (primary.paused) Expressive.title(14.sp) else Expressive.live(14.sp),
+                            color = cs.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    // Shape is state: a scallop while it counts, a circle when paused.
+                    StateShape(
+                        active = !primary.paused,
+                        size = 60.dp,
+                        color = if (primary.paused) cs.primary else cs.primaryContainer,
+                        on = MaterialShapes.Cookie9Sided,
+                        modifier = Modifier.clip(CircleShape).clickable {
+                            haptics.performHapticFeedback(if (primary.paused) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff)
+                            when {
+                                primary.id == "pomodoro" -> FocusHub.pomodoro(if (primary.paused) "resume" else "pause", labels)
+                                primary.id == "stopwatch" -> FocusHub.stopwatch("toggle", stopwatchTitle)
+                                else -> FocusHub.timer(primary.id, "toggle")
+                            }
+                        },
+                    ) {
+                        Icon(
+                            painterResource(if (primary.paused) R.drawable.rounded_play_arrow_fill1 else R.drawable.rounded_pause_fill1),
+                            stringResource(if (primary.paused) R.string.focus_start else R.string.home_paused),
+                            tint = if (primary.paused) cs.onPrimary else cs.onPrimaryContainer,
+                            modifier = Modifier.size(28.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Only this text reads the clock, so the card around it stays still while it counts. */
+@Composable
+private fun FocusCardTime(item: PcLiveItem, now: () -> Long) {
+    val text by remember(item) {
+        derivedStateOf {
+            val t = now()
+            when {
+                item.id == "stopwatch" -> clockText(
+                    if (item.paused) (if (item.elapsedMs >= 0) item.elapsedMs else item.remaining * 1000) / 1000
+                    else (t - item.start) / 1000,
+                )
+                item.paused -> clockText(item.remaining)
+                else -> clockText((item.end - t + 999) / 1000)
+            }
+        }
+    }
+    Text(
+        text,
+        style = Expressive.digits(44.sp),
+        autoSize = TextAutoSize.StepBased(minFontSize = 24.sp, maxFontSize = 44.sp),
+        maxLines = 1,
+        softWrap = false,
+    )
+}
+
+/** What is left of a countdown; a stopwatch sweeps once a minute like the clock app's dial. */
+private fun focusFraction(item: PcLiveItem, now: Long): Float = when {
+    item.id == "stopwatch" -> {
+        val ms = if (item.paused) (if (item.elapsedMs >= 0) item.elapsedMs else item.remaining * 1000) else now - item.start
+        (ms % 60_000) / 60_000f
+    }
+    item.total <= 0 -> 0f
+    item.paused -> item.remaining.toFloat() / item.total
+    else -> (item.end - now) / (item.total * 1000f)
+}.coerceIn(0f, 1f)
+
+private fun PhaseLabels.labelFor(phase: String): String = when (phase) {
+    "longBreak" -> longBreak
+    "break" -> shortBreak
+    else -> focus
+}
+
+/**
+ * The call at a glance, with mute and deafen right on the card; outside a call the same
+ * button mutes the PC's microphone. Rides `voiceSummary`, never the full `voice` topic.
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun VoiceCard(onOpen: (Dest) -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val scope = rememberCoroutineScope()
+    val summary by LinkHub.voiceSummary.collectAsStateWithLifecycle()
+    val audio by LinkHub.audio.collectAsStateWithLifecycle()
+    val inCall = summary?.inCall == true
+    val mic = audio?.mic
+    ExpressiveCard(Layer.pane, cs.onSurface, onClick = { onOpen(Dest.VOICE) }) {
+        Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Caption(stringResource(if (inCall) R.string.voice_in_call else R.string.voice_pc_mic), color = cs.onSurfaceVariant, modifier = Modifier.weight(1f))
+                Icon(painterResource(R.drawable.rounded_arrow_forward), null, tint = cs.onSurfaceVariant, modifier = Modifier.size(22.dp))
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        if (inCall) summary?.channel?.ifEmpty { null } ?: stringResource(R.string.voice_title)
+                        else mic?.name ?: stringResource(R.string.voice_pc_mic),
+                        style = Expressive.wide(22.sp),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    val muted = if (inCall) summary?.mute == true else mic?.mute == true
+                    Text(
+                        when {
+                            inCall && summary?.deaf == true -> stringResource(R.string.voice_deafened)
+                            muted -> stringResource(R.string.voice_mic_muted)
+                            inCall -> stringResource(R.string.voice_mic_live)
+                            else -> stringResource(R.string.voice_no_call)
+                        },
+                        style = if (muted) Expressive.title(14.sp) else Expressive.live(14.sp),
+                        color = if (muted) cs.error else cs.onSurfaceVariant,
+                        maxLines = 1,
+                    )
+                }
+                val s = summary
+                if (inCall && s != null) {
+                    VoiceCardButton(
+                        off = s.mute || s.deaf,
+                        on = R.drawable.rounded_mic_fill1,
+                        offIcon = R.drawable.rounded_mic_off,
+                        label = stringResource(R.string.voice_mute),
+                    ) { scope.launch { LinkHub.runVoice(JSONObject().put("a", "mute").put("on", !s.mute)) } }
+                    VoiceCardButton(
+                        off = s.deaf,
+                        on = R.drawable.rounded_headphones,
+                        offIcon = R.drawable.rounded_headset_off,
+                        label = stringResource(R.string.voice_deafen),
+                    ) { scope.launch { LinkHub.runVoice(JSONObject().put("a", "deaf").put("on", !s.deaf)) } }
+                } else if (mic != null) {
+                    VoiceCardButton(
+                        off = mic.mute,
+                        on = R.drawable.rounded_mic_fill1,
+                        offIcon = R.drawable.rounded_mic_off,
+                        label = stringResource(R.string.voice_mute),
+                    ) { setMute(mic, !mic.mute) }
+                }
+            }
+        }
+    }
+}
+
+/** Live is a scallop in the primary family; muted is a plain circle in the error family. */
+@Composable
+private fun VoiceCardButton(off: Boolean, @DrawableRes on: Int, @DrawableRes offIcon: Int, label: String, onClick: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val haptics = LocalHapticFeedback.current
+    StateShape(
+        active = !off,
+        size = 60.dp,
+        color = if (off) cs.errorContainer else cs.primaryContainer,
+        on = MaterialShapes.Cookie7Sided,
+        modifier = Modifier.clip(CircleShape).clickable(onClickLabel = label) {
+            haptics.performHapticFeedback(if (off) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff)
+            onClick()
+        },
+    ) {
+        Icon(painterResource(if (off) offIcon else on), label, tint = if (off) cs.onErrorContainer else cs.onPrimaryContainer, modifier = Modifier.size(26.dp))
+    }
+}
+
 @Composable
 private fun LoadColumn(value: String, unit: String, label: String, fraction: Float?, modifier: Modifier) {
     val cs = MaterialTheme.colorScheme
@@ -1458,14 +1736,18 @@ private fun EditCardContent(
     clipHistory: Boolean,
     onOpen: (Dest) -> Unit,
 ) {
-    val activeOnline = online && pc != null && shell != null
+    val activePc = if (online) pc else null
+    val activeShell = if (online) shell else null
+    val activeOnline = activePc != null && activeShell != null
     val player by PcMedia.player.collectAsStateWithLifecycle()
     val audio by LinkHub.audio.collectAsStateWithLifecycle()
     val liveItems by PcLive.items.collectAsStateWithLifecycle()
+    val workspaces by LinkHub.workspaces.collectAsStateWithLifecycle()
+    val presets by LinkHub.presets.collectAsStateWithLifecycle()
 
     when (card.id) {
         HomeCards.HERO -> {
-            if (activeOnline) PcHero(pc!!, shell!!, onOpen)
+            if (activePc != null && activeShell != null) PcHero(activePc, activeShell, onOpen)
             else EditCardPlaceholder(card, pc?.name?.takeIf { it.isNotEmpty() } ?: stringResource(R.string.home_edit_offline_preview))
         }
         HomeCards.MEDIA -> {
@@ -1473,7 +1755,7 @@ private fun EditCardContent(
             else EditCardPlaceholder(card, stringResource(if (activeOnline) R.string.home_edit_when_active else R.string.home_edit_offline_preview))
         }
         HomeCards.AUDIO -> {
-            val hasCap = activeOnline && "audio" in shell!!.caps
+            val hasCap = activeShell != null && "audio" in activeShell.caps
             if (hasCap && audio?.output != null) AudioCard(onOpen)
             else EditCardPlaceholder(card, editCapSummary(activeOnline, hasCap))
         }
@@ -1489,36 +1771,64 @@ private fun EditCardContent(
         }
         HomeCards.MONITOR -> SecondScreenCard(onOpen)
         HomeCards.CONTROLS -> {
-            val hasCap = activeOnline && "remote" in shell!!.caps && shell.actions.any { it.id != "lock" }
-            if (hasCap) {
+            val hasCap = activeShell != null && "remote" in activeShell.caps && activeShell.actions.any { it.id != "lock" }
+            if (activeShell != null && hasCap) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     SectionHeader(stringResource(R.string.controls_title), stringResource(R.string.remote_short)) { }
-                    ControlsRow(shell!!, onOpen)
+                    ControlsRow(activeShell, onOpen)
                 }
             } else {
                 EditCardPlaceholder(card, editCapSummary(activeOnline, hasCap))
             }
         }
         HomeCards.DISPLAY -> {
-            val hasCap = activeOnline && "display" in shell!!.caps
+            val hasCap = activeShell != null && "display" in activeShell.caps
             if (hasCap) HomeDisplay(placeholder = { EditCardPlaceholder(card, stringResource(R.string.home_edit_when_active)) })
             else EditCardPlaceholder(card, editCapSummary(activeOnline, hasCap))
         }
         HomeCards.WEBCAM -> WebcamCard(onOpen)
         HomeCards.PERF -> {
-            val hasCap = activeOnline && "perf" in shell!!.caps
+            val hasCap = activeShell != null && "perf" in activeShell.caps
             if (hasCap) PerfCard(onOpen)
             else EditCardPlaceholder(card, editCapSummary(activeOnline, hasCap))
         }
+        HomeCards.FOCUS -> {
+            val hasCap = activeShell != null && "focus" in activeShell.caps
+            if (hasCap) FocusCard(onOpen)
+            else EditCardPlaceholder(card, editCapSummary(activeOnline, hasCap))
+        }
+        HomeCards.VOICE -> {
+            val hasCap = activeShell != null && "voice" in activeShell.caps
+            if (hasCap) VoiceCard(onOpen)
+            else EditCardPlaceholder(card, editCapSummary(activeOnline, hasCap))
+        }
         HomeCards.MIC -> MicCard(onOpen)
+        HomeCards.WORKSPACES -> {
+            val hasCap = activeShell != null && "remote" in activeShell.caps
+            if (hasCap && workspaces != null) WorkspacesCard(onOpen)
+            else EditCardPlaceholder(card, editCapSummary(activeOnline, hasCap))
+        }
+        HomeCards.MODES -> ModesCard(onOpen)
+        HomeCards.PRESETS -> {
+            val hasCap = activeShell != null && "remote" in activeShell.caps
+            if (hasCap && presets?.list?.isNotEmpty() == true) PresetsCard(onOpen)
+            else EditCardPlaceholder(card, editCapSummary(activeOnline, hasCap))
+        }
+        HomeCards.TOUCHPAD -> TouchpadCard(activeShell != null && "touchpad" in activeShell.caps, onOpen)
+        HomeCards.PRESENTER -> PresenterCard(activeShell != null && "present" in activeShell.caps, onOpen)
+        HomeCards.DECK -> DeckCard(onOpen)
+        HomeCards.POWER -> {
+            val hasCap = activeShell != null && "power" in activeShell.caps
+            if (hasCap) PowerCard() else EditCardPlaceholder(card, editCapSummary(activeOnline, hasCap))
+        }
         HomeCards.CLIP -> {
             if (activeOnline && clipHistory) ClipHistoryCard(onOpen)
             else EditCardPlaceholder(
                 card,
                 stringResource(
                     when {
-                        !activeOnline -> R.string.home_edit_offline_preview
-                        "clipHistory" !in shell!!.caps -> R.string.home_edit_unsupported
+                        activePc == null || activeShell == null -> R.string.home_edit_offline_preview
+                        "clipHistory" !in activeShell.caps -> R.string.home_edit_unsupported
                         else -> R.string.home_edit_clip_off
                     },
                 ),

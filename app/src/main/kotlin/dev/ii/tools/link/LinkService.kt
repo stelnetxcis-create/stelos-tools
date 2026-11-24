@@ -87,6 +87,14 @@ class LinkService : Service() {
     private fun onlineNames(): List<String> =
         LinkHub.machines.value.filter { it.status is LinkStatus.Online }.map { it.pc.name.ifEmpty { "PC" } }
 
+    /** `adb shell dumpsys activity service dev.ii.tools/.link.LinkService`: the link's stats, release builds included. */
+    override fun dump(fd: java.io.FileDescriptor?, writer: java.io.PrintWriter, args: Array<out String>?) {
+        if (args?.contains("reset") == true) LinkStats.reset()
+        writer.println("status: ${LinkHub.status.value}")
+        writer.println("online: ${onlineNames().joinToString().ifEmpty { "-" }}")
+        LinkStats.dump(writer)
+    }
+
     override fun onDestroy() {
         scope?.cancel()
         scope = null

@@ -166,8 +166,11 @@ fun DeckScreen(
         apps?.let(DeckStore::updateAppIcons)
     }
 
+    val currentStatus = status
+    val currentPc = pc
+    val currentShell = shell
     val byId = remember(catalog) { catalog.orEmpty().associateBy { it.id } }
-    val ready = pc != null && status is LinkStatus.Online && shell != null
+    val ready = currentPc != null && currentStatus is LinkStatus.Online && currentShell != null
 
     // Profile folders: the PC pushes its focused window only while this deck has one (or
     // a folder is being edited and needs the open windows to pick from).
@@ -261,11 +264,10 @@ fun DeckScreen(
         },
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
-            val info = shell
             when {
-                pc == null -> Hint(stringResource(R.string.link_needed), Modifier.padding(top = 16.dp))
-                !ready -> Box(Modifier.padding(16.dp)) { CardGroup { StatusRow(pc!!, status) } }
-                info == null || "deck" !in info.caps -> Hint(stringResource(R.string.deck_off), Modifier.padding(top = 16.dp))
+                currentPc == null -> Hint(stringResource(R.string.link_needed), Modifier.padding(top = 16.dp))
+                !ready -> Box(Modifier.padding(16.dp)) { CardGroup { StatusRow(currentPc, currentStatus) } }
+                currentShell == null || "deck" !in currentShell.caps -> Hint(stringResource(R.string.deck_off), Modifier.padding(top = 16.dp))
                 openFolder == null && keys.isEmpty() && !editing -> Hint(stringResource(R.string.deck_empty), Modifier.padding(top = 16.dp))
                 else -> DeckPages(
                     keys = activeKeys,
@@ -676,10 +678,10 @@ private fun DeckPage(
     }
 }
 
-private data class KeyView(val label: String, val icon: String, val available: Boolean)
+internal data class KeyView(val label: String, val icon: String, val available: Boolean)
 
 /** What a key reads as now: the live catalog when it has the key, else what it was saved as. */
-private fun keyView(k: DeckKey, catalog: Map<String, DeckAction>, modes: List<Pair<String, String>>?, presets: List<String>?): KeyView =
+internal fun keyView(k: DeckKey, catalog: Map<String, DeckAction>, modes: List<Pair<String, String>>?, presets: List<String>?): KeyView =
     when (k.kind) {
         "action" -> catalog[k.ref]?.let { KeyView(it.name, it.icon, true) } ?: KeyView(k.label, k.icon, false)
         "mode" -> KeyView(modes?.firstOrNull { it.first == k.ref }?.second ?: k.label, k.icon, modes?.any { it.first == k.ref } != false)
@@ -743,7 +745,7 @@ private fun DeckTile(
 
 /** Icon over label; a workspace shows its number, an app its icon (falling back to initial). */
 @Composable
-private fun KeyFace(slot: DeckKey, label: String, icon: String, modifier: Modifier) {
+internal fun KeyFace(slot: DeckKey, label: String, icon: String, modifier: Modifier) {
     Column(
         modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,

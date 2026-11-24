@@ -1,5 +1,47 @@
 # Changelog
 
+## 1.5.0
+
+- **Faster file transfers:** a *Safe / Faster* choice in Settings and on the Send to PC
+  screen. Faster sends files over 1 MB, both ways, on an encrypted connection of their own
+  at the network's full speed, up to 16 GB a file; Safe keeps the link's own connection.
+- **Voice and meeting console:** control Discord/Vesktop calls (mute, deafen, voice activity vs
+  push-to-talk, speaking roster with cached avatars, per-user volume 0–200% and mute for me,
+  join/leave notices), mute or switch the PC's microphone outside a call, adjust Discord's app
+  volume and output device, and see active camera/mic/screen sensors (`Privacy`), with a
+  landscape layout and a home summary card.
+- **Focus and timers:** control the PC's pomodoro, countdown timers, stopwatch and ringing
+  alarms from the phone in the shell's clock app design, with the wavy progress ring,
+  cycle dots, stopwatch laps, one-tap saved presets, a duration keypad, optional vibration
+  on phase changes and a landscape desk-stand layout that keeps the screen on.
+- **Fixes from issue #5:** no crash when the link drops while the app is open (Tailscale
+  off, the shell restarting) or when a shared file was already let go; the touchpad sends
+  each touch's timing so the PC replays bursts at their real pace over Tailscale and slow
+  Wi-Fi; second-screen sound plays on the phone and keeps playing on the PC (a switch on the
+  PC sends it to the phone alone), with a buffer that adapts to the network; the shell can
+  stop the phone ringing; the drawing pad warns when live draw is off or closed on the PC,
+  with *Turn on* and *Reopen*; the webcam in device mode also shows up to PipeWire apps.
+
+## 1.4.2
+
+- **Game HUD on the phone:** the Performance screen draws the shell's game overlay HUD:
+  the frame rate with its average, lows, frame-time graph and stutters, CPU and RAM, GPU
+  and VRAM, network and battery, and chips for the game, resolution, driver, session and
+  power profile. It follows the rows, style and palette set for the HUD on the PC, and
+  fills the screen held sideways.
+- **Lighter on battery and memory:** with the screen off the phone is no longer woken
+  for workspaces, volume, toggles or PC copies (the latest arrives when the screen comes
+  on); a reconnect no longer downloads the PC's wallpaper again; no connection attempts
+  over mobile data when the PC cannot be reached from there; the PC's media notification
+  is posted only when what it shows changes; the media widgets' clock is counted by the
+  launcher and their seek line steps about a hundred times per track instead of every
+  second; the weather widgets share one alarm that does not wake the phone; the PC's
+  wallpaper behind the home card and other screen-only images are let go when the app
+  leaves the screen.
+- **PC wallpaper through the phone's wallpaper app:** *Use the PC's wallpaper* now opens
+  the phone's own wallpaper dialog (One UI's *Set as wallpaper*), so the system and other
+  apps see the change; from the background a notification opens it.
+
 ## 1.3.0
 
 - **Stelnet Tools:** the app is now Stelnet Tools (application id `net.stelnet.tools`) and the

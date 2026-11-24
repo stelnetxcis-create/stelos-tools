@@ -19,6 +19,7 @@ class IiToolsApp : Application() {
         Thread { dev.ii.tools.widgets.WidgetPreviews.publishIfNew(this) }.start()
         dev.ii.tools.camera.Webcam.init(this)
         dev.ii.tools.mic.Mic.init(this)
+        dev.ii.tools.shell.ShellAccess.init(this)
         // The link follows the app as a whole, not one screen: moving between activities
         // must not drop it, leaving the app (after LinkHub's grace) does.
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
@@ -28,5 +29,19 @@ class IiToolsApp : Application() {
             }
             override fun onStop(owner: LifecycleOwner) = LinkHub.onBackground()
         })
+    }
+
+    /**
+     * The app left the screen (or memory runs short): what only a screen shows goes, so
+     * the process the link keeps alive holds no decoded images. The PC wallpaper behind
+     * the home card lets go by itself (Look) when no screen collects it.
+     */
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= TRIM_MEMORY_UI_HIDDEN) {
+            dev.ii.tools.link.AppIcons.trim()
+            dev.ii.tools.clip.ClipHistory.trim()
+            dev.ii.tools.live.LiveHub.listener?.trim()
+        }
     }
 }

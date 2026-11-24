@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -89,10 +90,11 @@ fun ShareScreen(shared: Shared?, onBack: () -> Unit, onDone: () -> Unit, direct:
     val shell by LinkHub.shell.collectAsStateWithLifecycle()
 
     var sending by remember { mutableStateOf<String?>(null) }
+    var progress by remember { mutableFloatStateOf(0f) }
     var done by remember { mutableStateOf<String?>(null) }
     var problem by remember { mutableStateOf<String?>(null) }
     val failed = stringResource(R.string.wallpaper_failed)
-    val tooLarge = stringResource(R.string.wallpaper_too_large)
+    val tooLarge = stringResource(R.string.share_too_large)
     val off = stringResource(R.string.share_off)
 
     LaunchedEffect(done) {
@@ -135,13 +137,14 @@ fun ShareScreen(shared: Shared?, onBack: () -> Unit, onDone: () -> Unit, direct:
         if (sending != null || done != null) return@send
         haptics.performHapticFeedback(HapticFeedbackType.Confirm)
         sending = target
+        progress = 0f
         problem = null
         scope.launch {
             val why = if (target == "clip") {
                 if (s.file != null) ClipSync.sendImage(ctx, s.file, s.mime ?: "image/jpeg") else ClipSync.sendText(s.text.orEmpty())
             } else if (s.file != null) {
                 val (name, size) = describeFile(ctx, s.file, s.mime)
-                LinkHub.upload(name, size, { ctx.contentResolver.openInputStream(s.file) }, "share", target) { }
+                LinkHub.upload(name, size, { ctx.contentResolver.openInputStream(s.file) }, "share", target) { progress = it }
             } else {
                 val text = if (target == "browser") s.url.orEmpty() else s.text.orEmpty()
                 LinkHub.runWhenReady("share", JSONObject().put("to", target).put("text", text))
@@ -184,7 +187,11 @@ fun ShareScreen(shared: Shared?, onBack: () -> Unit, onDone: () -> Unit, direct:
                 targets.forEach { t ->
                     ToolRow(
                         title = stringResource(t.label),
-                        summary = if (done == t.id) stringResource(R.string.share_done) else null,
+                        summary = when {
+                            done == t.id -> stringResource(R.string.share_done)
+                            sending == t.id && progress > 0f -> stringResource(R.string.share_progress, (progress * 100).toInt())
+                            else -> null
+                        },
                         icon = t.icon,
                         tint = if (done == t.id) Tint.PRIMARY else Tint.SECONDARY,
                         onClick = if (ready && sending == null && done == null) {
@@ -204,6 +211,7 @@ fun ShareScreen(shared: Shared?, onBack: () -> Unit, onDone: () -> Unit, direct:
             }
         }
         problem?.let { item { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) } }
+        if (shared.file != null) item { CardGroup { TransferModeRow() } }
     }
 }
 

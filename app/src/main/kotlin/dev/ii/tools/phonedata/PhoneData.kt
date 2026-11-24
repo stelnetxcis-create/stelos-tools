@@ -91,6 +91,7 @@ object PhoneData {
     fun setEnabled(c: Context, on: Boolean) {
         c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(ENABLED, on).apply()
         ctx?.let { if (on) start(it) else stop() }
+        if (!on) PhonePerf.stopAll()
         syncBluetoothReceiver()
         LinkHub.announceCaps()
     }

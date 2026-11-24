@@ -6,10 +6,10 @@ import java.io.FileOutputStream
 
 /**
  * A file the PC is sending (PROTOCOL.md, "Files", the other way): a `file` header, then
- * binary frames, written to the cache as they come so nothing large sits in memory.
- * One at a time; a new header drops an unfinished one.
+ * binary frames (or a lane, [FileLane]), written to the cache as they come so nothing
+ * large sits in memory. One at a time over the link; a new header drops an unfinished one.
  */
-internal class Incoming(dir: File, header: JSONObject) {
+internal class Incoming(dir: File, header: JSONObject, max: Long = FileLane.LINK_MAX) {
     val id: Int = header.optInt("id")
     val name: String = header.optString("name").substringAfterLast('/').ifEmpty { "file" }
     val purpose: String = header.optString("purpose")
@@ -18,13 +18,16 @@ internal class Incoming(dir: File, header: JSONObject) {
     private val out = FileOutputStream(file)
     private var received = 0L
 
-    val valid: Boolean = size in 1..(64L shl 20)
+    val valid: Boolean = size in 1..max
+
+    /** Room for it in the cache, and some to spare. */
+    val fits: Boolean = dir.usableSpace > size + (64L shl 20)
 
     /** Writes a chunk; true once the file is whole. */
-    fun write(bytes: ByteArray): Boolean {
-        received += bytes.size
+    fun write(bytes: ByteArray, len: Int = bytes.size): Boolean {
+        received += len
         if (received > size) throw IllegalStateException("more than announced")
-        out.write(bytes)
+        out.write(bytes, 0, len)
         if (received < size) return false
         out.close()
         return true

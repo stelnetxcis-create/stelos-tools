@@ -69,7 +69,11 @@ abstract class ShellWidget : AppWidgetProvider() {
         val (w, h) = box(ctx, manager.getAppWidgetOptions(id))
         val f = Frame(ctx, designW, designH, w, h, stretch = stretch)
         draw(ctx, f, id)
-        manager.updateAppWidget(id, f.views)
+        try {
+            manager.updateAppWidget(id, f.views)
+        } finally {
+            f.recycle()
+        }
     }
 
     /** The cell in pixels, portrait: launchers report min width and max height for it. */

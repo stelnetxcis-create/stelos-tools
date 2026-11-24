@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- What the FileProvider may hand out: an image copied from the PC, and a downloaded app update. -->
+<!-- What the FileProvider may hand out: an image copied from the PC, a downloaded app update,
+     and the PC's wallpaper for the phone's wallpaper app. -->
 <paths>
     <cache-path name="clip" path="clip/" />
     <cache-path name="updates" path="updates/" />
+    <files-path name="wallsync" path="wallsync/" />
 </paths>

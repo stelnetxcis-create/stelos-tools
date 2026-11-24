@@ -83,6 +83,10 @@ object PcMedia {
     private var shownAt = 0L
     private var art: Bitmap? = null
     private var artName = ""
+    /** What the session's metadata and the notification last showed: a push that changes
+     *  neither (most of them: a seek, the clock) does not post them again. */
+    private var metaKey = ""
+    private var notifKey = ""
 
     private val _player = MutableStateFlow<PcPlayer?>(null)
     /** The same player for the home's media card; null when nothing plays. */
@@ -98,6 +102,9 @@ object PcMedia {
 
     fun caps(c: Context): List<String> =
         if (isEnabled(c)) listOf("pcMedia", "pcLyrics") else emptyList()
+
+    /** The covers kept, for `caps.have`: the shell does not send them again. */
+    fun haveArt(c: Context): List<String> = artDir(c).listFiles()?.map { it.name }.orEmpty()
 
     /** The `pcMedia` topic, from the socket thread. */
     fun update(c: Context, m: JSONObject) {
@@ -148,6 +155,8 @@ object PcMedia {
                 it.release()
             }
             session = null
+            metaKey = ""
+            notifKey = ""
             app?.getSystemService(NotificationManager::class.java)?.cancel(NOTIF_ID)
             VolumeKeys.onPcMediaChanged()
         }
@@ -235,7 +244,8 @@ object PcMedia {
             it.setCallback(callback, main)
             session = it
         }
-        s.setMetadata(
+        val meta = listOf(m.optString("title"), m.optString("artist"), m.optString("album"), m.optLong("length"), System.identityHashCode(art)).joinToString("\u0000")
+        if (meta != metaKey) s.setMetadata(
             MediaMetadata.Builder()
                 .putString(MediaMetadata.METADATA_KEY_TITLE, m.optString("title"))
                 .putString(MediaMetadata.METADATA_KEY_ARTIST, m.optString("artist"))
@@ -247,6 +257,7 @@ object PcMedia {
                 }
                 .build(),
         )
+        metaKey = meta
         var actions = PlaybackState.ACTION_PLAY_PAUSE or PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE
         if (m.optBoolean("canNext")) actions = actions or PlaybackState.ACTION_SKIP_TO_NEXT
         if (m.optBoolean("canPrevious")) actions = actions or PlaybackState.ACTION_SKIP_TO_PREVIOUS
@@ -265,6 +276,15 @@ object PcMedia {
         s.isActive = true
         VolumeKeys.onPcMediaChanged()
 
+        val handoffUrl = m.optString("url")
+        val withHandoff = Handoff.isEnabled(ctx) && handoffUrl.startsWith("http")
+        val subText = listOf(m.optString("app"), LinkHub.pc.value?.name.orEmpty()).filter { it.isNotEmpty() }.joinToString(" · ")
+        val key = listOf(
+            m.optString("title"), m.optString("artist"), subText, System.identityHashCode(art), playing,
+            m.optBoolean("canPrevious"), m.optBoolean("canNext"), if (withHandoff) handoffUrl else "",
+        ).joinToString("\u0000")
+        if (key == notifKey) return
+        notifKey = key
         val nm = ctx.getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL, ctx.getString(R.string.pcmedia_channel), NotificationManager.IMPORTANCE_LOW).apply {
@@ -284,14 +304,14 @@ object PcMedia {
             )
             if (m.optBoolean("canNext")) add(button(ctx, R.drawable.rounded_skip_next, R.string.pcmedia_next, "next"))
         }
-        val handoffUrl = m.optString("url")
-        val handoff = if (Handoff.isEnabled(ctx) && handoffUrl.startsWith("http")) {
+        val handoff = if (withHandoff) {
             Notification.Action.Builder(
                 Icon.createWithResource(ctx, R.drawable.rounded_smartphone),
                 ctx.getString(R.string.handoff_action),
                 PendingIntent.getActivity(
                     ctx, 1,
-                    Intent(ctx, HandoffActivity::class.java).putExtra("url", handoffUrl).putExtra("position", position()),
+                    // Read at the tap ("live"), so the notification need not be posted again as it plays.
+                    Intent(ctx, HandoffActivity::class.java).putExtra("url", handoffUrl).putExtra("position", position()).putExtra("live", true),
                     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
                 ),
             ).build()
@@ -301,7 +321,7 @@ object PcMedia {
             .setSmallIcon(R.drawable.rounded_desktop_windows)
             .setContentTitle(m.optString("title"))
             .setContentText(m.optString("artist"))
-            .setSubText(listOf(m.optString("app"), LinkHub.pc.value?.name.orEmpty()).filter { it.isNotEmpty() }.joinToString(" · "))
+            .setSubText(subText)
             .setLargeIcon(art)
             .setContentIntent(open)
             .setCategory(Notification.CATEGORY_TRANSPORT)

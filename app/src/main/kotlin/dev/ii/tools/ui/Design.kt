@@ -144,6 +144,7 @@ fun ToolScaffold(
     actions: @Composable RowScope.() -> Unit = {},
     listState: LazyListState = rememberLazyListState(),
     snackbarHost: @Composable () -> Unit = {},
+    subtitleContent: (@Composable () -> Unit)? = null,
     content: LazyListScope.() -> Unit,
 ) {
     val page = Layer.page
@@ -169,7 +170,9 @@ fun ToolScaffold(
                     )
                 },
                 subtitle = {
-                    if (!subtitle.isNullOrEmpty()) {
+                    if (subtitleContent != null) {
+                        subtitleContent()
+                    } else if (!subtitle.isNullOrEmpty()) {
                         Text(subtitle, style = Expressive.live(15.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 },

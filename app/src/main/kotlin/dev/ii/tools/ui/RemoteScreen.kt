@@ -131,7 +131,7 @@ fun RemoteScreen(onBack: () -> Unit) {
  * sent request shows "Restarting…" / "Shutting down…" until the link drops.
  */
 @Composable
-private fun PowerRow() {
+internal fun PowerRow() {
     val cs = MaterialTheme.colorScheme
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()

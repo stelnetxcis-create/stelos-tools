@@ -88,7 +88,7 @@ object AppUpdate {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val checkMutex = Mutex()
     private val client by lazy {
-        OkHttpClient.Builder()
+        dev.ii.tools.link.Http.base.newBuilder()
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             .callTimeout(20, TimeUnit.SECONDS)

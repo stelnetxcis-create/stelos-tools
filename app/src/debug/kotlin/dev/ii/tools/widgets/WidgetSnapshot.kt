@@ -16,7 +16,7 @@ import kotlin.math.roundToInt
  * Debug only: draws every shell widget, light and dark, into PNGs without placing them,
  * so a port can be compared with the shell from a computer:
  *
- *   adb shell am broadcast -n dev.ii.tools/.widgets.WidgetSnapshot [--es only Poster]
+ *   adb shell am broadcast -n net.stelnet.tools/dev.ii.tools.widgets.WidgetSnapshot [--es only Poster]
  *   adb pull /sdcard/Android/data/dev.ii.tools/files/snap
  *
  * Media and weather use sample data, so the result does not depend on the phone's state.

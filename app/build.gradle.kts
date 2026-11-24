@@ -21,8 +21,8 @@ android {
         applicationId = "net.stelnet.tools"
         minSdk = 31 // Material You dynamic colour
         targetSdk = 37
-        versionCode = 10300 // major * 10000 + minor * 100 + patch
-        versionName = "1.3.0"
+        versionCode = 10500 // major * 10000 + minor * 100 + patch
+        versionName = "1.5.0"
     }
 
     val releaseSigning = signing("storeFile", "II_KEYSTORE_FILE")?.let { file ->
@@ -41,6 +41,14 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = releaseSigning ?: signingConfigs.getByName("debug")
         }
+        // A debuggable build that installs beside the release app (its own package, its own
+        // pairing), for testing on a phone whose release build is signed elsewhere.
+        create("dev") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+            matchingFallbacks += "debug"
+        }
     }
 
     compileOptions {
@@ -50,6 +58,10 @@ android {
 
     buildFeatures {
         compose = true
+        // The Shizuku user service's interface (shell/IShellStats.aidl).
+        aidl = true
+        // BuildConfig.DEBUG: the stream's once-a-second logs only on debuggable builds.
+        buildConfig = true
     }
 
     packaging {
@@ -72,5 +84,7 @@ dependencies {
     implementation(libs.play.services.code.scanner)
     implementation(libs.apache.sshd.core)
     implementation(libs.apache.sshd.sftp)
+    implementation(libs.shizuku.api)
+    implementation(libs.shizuku.provider)
     debugImplementation(libs.compose.ui.tooling)
 }

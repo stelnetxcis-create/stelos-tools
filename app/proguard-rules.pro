@@ -13,3 +13,6 @@
 # (NullPointerException in GmsBarcodeScanning.getClient on tap).
 -keep class * implements com.google.firebase.components.ComponentRegistrar { <init>(); }
 -keep class com.google.mlkit.common.internal.MlKitComponentDiscoveryService
+
+# Shizuku starts the stats user service by class name in a shell-uid process.
+-keep class dev.ii.tools.shell.ShellStatsService { <init>(...); }

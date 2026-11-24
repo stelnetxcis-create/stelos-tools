@@ -86,9 +86,7 @@ class PosterMediaWidget : MediaWidget() {
         val top = nextY + buttonSize / 2 - columnH / 2
         f.seekLine(m, seekX, top + SeekLine.HEIGHT / 2, seekW)
         val ty = top + SeekLine.HEIGHT + 2f
-        f.layer(Role.TEXT, seekX, ty, seekW / 2, times.lineHeight(), MediaWidget.SLOT_POSITION) {
-            textTop(m.positionText, seekX, ty, times)
-        }
+        f.elapsed(Role.TEXT, seekX, ty, seekW / 2, times.lineHeight(), Px.SMALLER, m.positionMs, m.playing)
         f.layer(Role.SUBTEXT, seekX + seekW / 2, ty, seekW / 2, times.lineHeight(), MediaWidget.SLOT_LENGTH) {
             textRight(m.lengthText, seekX + seekW, ty + times.ascentPx(), times)
         }

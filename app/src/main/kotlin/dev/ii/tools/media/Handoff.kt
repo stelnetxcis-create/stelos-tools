@@ -114,7 +114,9 @@ class HandoffActivity : Activity() {
         super.onCreate(savedInstanceState)
         val url = intent.getStringExtra("url").orEmpty()
         if (url.startsWith("http")) {
-            val ms = intent.getLongExtra("position", 0L)
+            // From the PC's media notification: where the track is now, not when it was posted.
+            val live = if (intent.getBooleanExtra("live", false)) PcMedia.handoffTarget()?.takeIf { it.first == url }?.second else null
+            val ms = live ?: intent.getLongExtra("position", 0L)
             if (Handoff.open(this, url, ms)) LinkHub.send("pcMedia", JSONObject().put("a", "pause"))
         }
         getSystemService(NotificationManager::class.java)?.cancel(0x6861)

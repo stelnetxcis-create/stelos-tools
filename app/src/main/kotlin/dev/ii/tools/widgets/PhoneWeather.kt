@@ -52,7 +52,7 @@ object PhoneWeather {
     }
 
     private val http by lazy {
-        OkHttpClient.Builder().callTimeout(15, TimeUnit.SECONDS).build()
+        dev.ii.tools.link.Http.base.newBuilder().callTimeout(15, TimeUnit.SECONDS).build()
     }
 
     /** Settings → Regional preferences → Temperature (Android 14+), else the locale's default. */

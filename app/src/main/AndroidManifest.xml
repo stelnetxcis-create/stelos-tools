@@ -5,8 +5,6 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Routines: leaving and arriving home are Wi-Fi changes. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- Normal permission: only used when "Use the PC's wallpaper" is on. -->
-    <uses-permission android:name="android.permission.SET_WALLPAPER" />
     <!-- The webcam: the camera, kept in a camera foreground service while streaming. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -64,6 +62,10 @@
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
         android:theme="@style/Theme.IiTools">
+
+        <!-- Release builds can be profiled from adb (Perfetto heapprofd, the native heap):
+             what tools/measure.sh needs to tell where the memory goes. -->
+        <profileable android:shell="true" />
 
         <activity
             android:name=".MainActivity"
@@ -223,6 +225,16 @@
             android:exported="false" />
 
         <activity
+            android:name=".FocusActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
+            android:exported="false" />
+
+        <activity
+            android:name=".VoiceActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
+            android:exported="false" />
+
+        <activity
             android:name=".ToolsActivity"
             android:exported="false" />
 
@@ -267,6 +279,15 @@
         <activity
             android:name=".SecondScreenActivity"
             android:exported="false" />
+
+        <!-- Shizuku hands its binder to the app here, only when the user runs Shizuku. -->
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:multiprocess="false"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -470,6 +491,11 @@
                 <action android:name="android.intent.action.LOCALE_CHANGED" />
             </intent-filter>
         </receiver>
+
+        <!-- The weather widgets' half-hourly refresh (an inexact, non-wakeup alarm). -->
+        <receiver
+            android:name=".widgets.WeatherTick"
+            android:exported="false" />
 
         <!-- Transport keys on the media widgets. -->
         <receiver

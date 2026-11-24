@@ -139,6 +139,16 @@ fun WallpaperScreen(shared: Uri?, onBack: () -> Unit, onDone: () -> Unit) {
                         icon = R.drawable.rounded_desktop_windows,
                         summary = stringResource(R.string.wallsync_summary),
                     )
+                    val pending by dev.ii.tools.link.WallSync.pending.collectAsStateWithLifecycle()
+                    LaunchedEffect(Unit) { dev.ii.tools.link.WallSync.refreshPending(ctx) }
+                    if (sync && pending) {
+                        ToolRow(
+                            title = stringResource(R.string.wallsync_apply_title),
+                            icon = R.drawable.rounded_wallpaper,
+                            summary = stringResource(R.string.wallsync_apply_summary),
+                            onClick = { dev.ii.tools.link.WallSync.apply(ctx) },
+                        )
+                    }
                     val saving by dev.ii.tools.link.WallSync.saving.collectAsStateWithLifecycle()
                     if (shell?.caps?.contains("wallSave") == true) {
                         ToolRow(

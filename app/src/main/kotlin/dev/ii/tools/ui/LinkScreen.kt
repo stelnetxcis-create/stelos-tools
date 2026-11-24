@@ -54,6 +54,7 @@ import dev.ii.tools.clip.ClipHistory
 import dev.ii.tools.clip.ClipSync
 import dev.ii.tools.clip.ClipWatchService
 import dev.ii.tools.files.FileServer
+import dev.ii.tools.focus.FocusPrefs
 import dev.ii.tools.gallery.Gallery
 import dev.ii.tools.link.LinkHub
 import dev.ii.tools.link.FailReason
@@ -82,6 +83,7 @@ import dev.ii.tools.tiles.FavoritePreset
 import dev.ii.tools.usage.PhoneUsage
 import dev.ii.tools.ui.theme.Expressive
 import dev.ii.tools.update.AppUpdate
+import dev.ii.tools.voice.VoicePrefs
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -162,6 +164,8 @@ fun SettingsScreen(onBack: () -> Unit, onOpen: (Dest) -> Unit) {
     var shotsSend by remember { mutableStateOf(ShotSync.sends(ctx)) }
     var browse by remember { mutableStateOf(FileServer.isEnabled(ctx)) }
     var pcLive by remember { mutableStateOf(PcLive.isEnabled(ctx)) }
+    val focusVibrate by FocusPrefs.vibrateOnPhaseChange(ctx).collectAsStateWithLifecycle()
+    val voiceEnabled by VoicePrefs.enabled(ctx).collectAsStateWithLifecycle()
     var pcMedia by remember { mutableStateOf(PcMedia.isEnabled(ctx)) }
     var handoff by remember { mutableStateOf(Handoff.isEnabled(ctx)) }
     var wallSync by remember { mutableStateOf(WallSync.isEnabled(ctx)) }
@@ -283,6 +287,7 @@ fun SettingsScreen(onBack: () -> Unit, onOpen: (Dest) -> Unit) {
                     mirrorRadio = it
                     MirrorRadio.setEnabled(ctx, it)
                 }, R.drawable.rounded_speed, summary = stringResource(R.string.mirror_radio_body))
+                TransferModeRow()
                 TailnetAutoRow()
                 PermissionRow(
                     stringResource(R.string.link_battery), stringResource(R.string.settings_battery_body), R.drawable.rounded_battery_full, s.battery,
@@ -370,6 +375,7 @@ fun SettingsScreen(onBack: () -> Unit, onOpen: (Dest) -> Unit) {
                     data = it
                     PhoneData.setEnabled(ctx, it)
                 }, R.drawable.rounded_battery_full, summary = stringResource(R.string.settings_data_body))
+                ShellStatsRow(enabled = data)
                 SwitchRow(stringResource(R.string.cal_share), calShare, {
                     calShare = it
                     PhoneCalendar.setEnabled(ctx, it)
@@ -423,6 +429,12 @@ fun SettingsScreen(onBack: () -> Unit, onOpen: (Dest) -> Unit) {
                     pcLive = it
                     PcLive.setEnabled(ctx, it)
                 }, R.drawable.rounded_timer)
+                SwitchRow(stringResource(R.string.focus_vibrate), focusVibrate, {
+                    FocusPrefs.setVibrateEnabled(ctx, it)
+                }, R.drawable.rounded_vibration, summary = stringResource(R.string.focus_vibrate_body))
+                SwitchRow(stringResource(R.string.voice_setting), voiceEnabled, {
+                    VoicePrefs.setEnabled(ctx, it)
+                }, R.drawable.rounded_record_voice_over, summary = stringResource(R.string.voice_setting_body))
                 SwitchRow(stringResource(R.string.pclink_pc_media), pcMedia, {
                     pcMedia = it
                     PcMedia.setEnabled(ctx, it)

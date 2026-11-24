@@ -28,7 +28,9 @@ Kotlin + Jetpack Compose, Material 3 Expressive with Material You dynamic colour
 Google Sans Flex (the StelOS shell's face). The home is a dashboard of the PC: its card (the
 lock, its state), what plays on it, its volume with output and input as split buttons
 (the device list opens in a bottom sheet), what it is doing live, the tools used most,
-its quick toggles, its load, and a card to stream the phone as the PC's microphone. Every tool is in *Tools*, every permission and switch in
+its quick toggles, its load, and a card to stream the phone as the PC's microphone. *Settings → Edit
+home screen* reorders and removes cards and adds the optional ones: workspaces, modes and
+routines, presets, a small touchpad, the slide clicker, the deck's first keys and power. Every tool is in *Tools*, every permission and switch in
 *Settings* (where pairing lives too); each screen is its own activity (`Dest` →
 `MainActivity`).
 
@@ -40,12 +42,12 @@ its quick toggles, its load, and a card to stream the phone as the PC's micropho
 on the same network as the phone (or both on Tailscale). Google Play services are only
 used by the QR scanner button; without them, scan the code with the camera app.
 
-1. **Download** `stelnet-tools-1.3.0.apk` from the [latest release](https://github.com/stelnetxcis-create/stelos-tools/releases/latest)
+1. **Download** `stelnet-tools-<version>.apk` from the [latest release](https://github.com/stelnetxcis-create/stelos-tools/releases/latest)
    and open it on the phone (allow installing from your browser or file manager when asked).
    Every release is signed with the same key, so updates install over the old version.
    Its certificate's SHA-256 is
-   `<SHA-256 of YOUR signing certificate, see STELNET-BUILD.md>`
-   (`apksigner verify --print-certs stelnet-tools-1.3.0.apk`).
+   `1C:BC:9C:F8:3B:73:5A:3C:D4:D9:CC:A2:01:AE:0D:09:E3:35:55:F0:CB:3C:3D:D7:C3:24:A5:A3:FE:B9:3F:43`
+   (`apksigner verify --print-certs stelnet-tools-<version>.apk`).
 2. **Turn the link on at the PC:** *Settings → Stelnet Tools*, switch the link on, then
    *Pair a phone*. A QR code appears. The link listens on port `47210` by default (TCP,
    and UDP to find the PC again when its address changes). A firewall that denies
@@ -89,7 +91,6 @@ without the ones you refuse; that feature just stays off.
 | `ACCESS_LOCAL_NETWORK`, `INTERNET`, `ACCESS_NETWORK_STATE` | The link to the PC; leaving and arriving home as Routines triggers |
 | `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, `WAKE_LOCK` | Keeping the link up in Doze; holding Wi-Fi awake while a stream runs |
 | `POST_NOTIFICATIONS`, `POST_PROMOTED_NOTIFICATIONS` | Its own notifications and Android 16 Live Updates |
-| `SET_WALLPAPER` | Only when *Use the PC's wallpaper* is on |
 | `SYSTEM_ALERT_WINDOW` (Display over other apps) | Only to let the PC turn on the microphone while the phone is in the background; nothing is drawn |
 | `BLUETOOTH_CONNECT` | The battery of the phone's connected Bluetooth devices, for the PC |
 
@@ -97,8 +98,6 @@ without the ones you refuse; that feature just stays off.
 
 What's planned next, in no particular order:
 
-- **New cards inside home screen.** More expressive and dedicated cards for other features.
-- **New modes integrated with the shell.** Starting with a screen saver.
 - **Opus for the microphone.** An option for weak networks.
 
 ## Integrations
@@ -139,11 +138,22 @@ The full contract is the shell's `scripts/iiLink/PROTOCOL.md`.
   code (*Settings → Stelnet Tools → Other PCs*).
 - **Lifetime:** the link stays open in the background (*Stay connected*, on by default),
   so the PC can reach the phone at any time; it needs the app let off battery
-  optimisation (a guided step), or Doze cuts it. No foreground service for the link: the process lives
-  through the notification listener (the microphone and webcam use one, only while they stream). A ping a minute; away from the PC it retries every
-  few minutes, and at once when the network changes. Turned off, the link is open only
-  while the app is in front (plus 30 s) or for a burst of notifications. If the PC's
-  address changed, the app finds it again with a UDP broadcast on the link's port.
+  optimisation (a guided step), or Doze cuts it. A silent `connectedDevice` foreground
+  service keeps the process from the low-memory killer while it is on. A ping a minute;
+  away from the PC it retries every few minutes on Wi-Fi, not at all on mobile data with
+  no tailnet (the next network change tries again), and at once when the network changes.
+  Turned off, the link is open only while the app is in front (plus 30 s) or for a burst
+  of notifications. If the PC's address changed, the app finds it again with a UDP
+  broadcast on the link's port.
+- **Light on battery:** with the phone's screen off the shell holds what only a screen
+  shows (workspaces, audio, the deck, toggles, the clipboard) and sends the latest when it
+  comes on (`quiet`); calls, notifications, live activity and the PC's media still arrive
+  at once. On connect the phone lists the images it already has (`caps.have`), so a
+  reconnect does not bring the wallpaper again. Images for screens (the PC's wallpaper on
+  the home) are decoded only while a screen shows them. Connects and drops are counted:
+  `adb shell dumpsys activity service dev.ii.tools/.link.LinkService` (and
+  `tools/measure.sh`, which also reports memory and battery; `--fresh` measures the app
+  restarted without a screen).
 - **Remote control:** lock, lock + always-on display, always-on display, media mode,
   scratchpad. Each is a toggle that shows the shell's real state (`state`), whatever
   changed it: a lock from a keybind lights the tile up too. Unlocking is refused on
@@ -198,6 +208,11 @@ The full contract is the shell's `scripts/iiLink/PROTOCOL.md`.
   its AI chat; text becomes a note, a reminder or a task; a photo or any file goes
   to `~/Downloads` as KDE Connect does (never overwriting), to the shell's file shelf, or
   (images) to the AI chat.
+- **Faster transfers:** *File transfers* in Settings (and on the Send to PC screen) picks
+  *Safe* (the link's own connection, up to 64 MB a file) or *Faster*: files over 1 MB in
+  either direction get a TLS connection of their own on the link's port, without the
+  WebSocket, at the network's full speed and up to 16 GB. If that connection can't be
+  opened, the file goes the safe way on its own.
 - **Clipboard:** what you copy on the PC (text or image) lands on the phone's clipboard
   while the link is up, and the latest copy when it connects. The phone's clipboard goes
   to the PC on request (Android only lets a focused app read it): the *Clipboard to PC*
@@ -218,6 +233,17 @@ The full contract is the shell's `scripts/iiLink/PROTOCOL.md`.
   the Phone tab and *Settings → Stelnet Tools*. Android only lets an app read a device's
   overall level, so separate buds and the case aren't available, and a device that
   doesn't report its battery over Bluetooth (most Wear OS watches) isn't listed.
+- **The phone's load on the PC:** a *Stats* tab in the Phone tab's bottom group shows
+  RAM (with the last minute), storage, the thermal state, the battery's heat and power,
+  network throughput and each core's clock where the phone exposes it. The phone samples
+  every 2 s only while that panel is on screen, and nothing otherwise. Overall CPU use and
+  per-sensor temperatures are closed to apps since Android 8; with
+  [Shizuku](https://shizuku.rikka.app/) running and allowed (*Detailed stats with Shizuku*,
+  in Settings and Phone data) the panel adds them: CPU use per core, the GPU's, sensor
+  temperatures (skin, CPU, GPU, RAM, modem, USB), the busiest apps, battery health and
+  storage by type. A shell-user process (`:stats`) reads them from files, never spawning a
+  command per sample (only `dumpsys` once a minute), and lives only while the PC watches
+  (about 70 MB PSS, ~0% CPU on a Galaxy S23).
 - **Calendar:** every calendar the phone syncs (Google, Samsung, Outlook, local) in the
   shell's Timetable, widgets and calendar panels, without khal or vdirsyncer on the PC.
   The PC asks for the dates it shows; the phone answers only when something changed and
@@ -237,12 +263,25 @@ The full contract is the shell's `scripts/iiLink/PROTOCOL.md`.
 - **PC activity:** the screen recording, the pomodoro, the stopwatch, countdowns, a
   ringing alarm and progress as Android 16 Live Updates, with their buttons (stop, pause,
   snooze). Timers count down on the phone by themselves.
+- **Focus and timers:** the shell's clock app on the phone (in portrait, or sideways as a
+  desk stand with the screen kept awake): pomodoro with phase badge, wavy ring and cycle
+  dots (plus optional vibration when a phase changes), countdown timers with `+1:00`,
+  pause/resume and reset, stopwatch with laps (fastest and slowest marked), ringing alarm
+  controls, and one-tap shortcuts for the PC's saved timer presets and a duration keypad.
+  Timers count locally from epoch timestamps with no per-second link traffic.
+- **Voice and meeting console:** control Discord/Vesktop calls from the phone (channel,
+  elapsed time, mute, deafen, voice activity vs push-to-talk, speaking roster with cached
+  avatars, per-person 0–200% volume and local mute, join/leave notices), mute or switch
+  the PC's default mic outside a call, adjust Discord's stream volume and output device,
+  and see active camera, mic, and screen sensors (`Privacy`).
 - **Wake the PC:** the shell gives the phone its adapters' MAC addresses; *Wake the PC*
   (in Connect to PC, or the Quick Settings tile) sends the Wake-on-LAN magic packet. The
   PC needs Wake-on-LAN on in its firmware and adapter.
-- **Performance:** the PC's CPU, GPU, memory and frame rate (MangoHud), a sample a
-  second, only while the screen is open; the PC samples only then. The screen stays on,
-  four cards side by side with the phone lying down.
+- **Performance:** the shell's game overlay HUD on the phone: frame rate with its average,
+  lows, frame-time graph and stutters (MangoHud), CPU and RAM, GPU and VRAM, network and
+  battery, and the game, resolution, driver and power profile. It draws the rows, style and
+  palette set for the HUD on the PC. Held sideways it fills the screen; a sample a second,
+  only while the screen is open (the PC samples only then), and the screen stays on.
 - **Phone media on the PC:** each app playing on the phone appears on the PC as an MPRIS
   player (title, artist, cover, position), so the shell's media widgets, island, lock
   screen and media keys control it, as with KDE Connect.
@@ -250,15 +289,24 @@ The full contract is the shell's `scripts/iiLink/PROTOCOL.md`.
   microphone: the PC becomes the phone's Bluetooth headset (HFP) for that call only.
   Needs the phone paired with the PC over Bluetooth.
 - **Drawing pad:** draw on the phone, held sideways, and the ink appears in the shell's
-  live draw on the focused screen, with its tools, colours and undo.
+  live draw on the focused screen, with its tools, colours and undo. When the PC's live
+  draw is off or closed, the pad says so and turns it on or reopens it in one tap.
 - **Second screen:** the phone as a monitor for the PC over USB or Wi-Fi: extend (a new
   screen the phone's size) or mirror the focused screen, with touch as the PC's
-  touchscreen. Over Wi-Fi it rides Stelnet Link's encrypted connection, with adaptive bitrate
-  and a live chip showing the bitrate, latency and dropped frames; USB (adb on the PC,
-  USB debugging on the phone) is used when plugged in, for the lowest latency.
+  touchscreen. Over Wi-Fi it rides Stelnet Link's encrypted connection, the video as sealed UDP
+  datagrams with Reed–Solomon parity on the link's own port (a lost packet costs at most its
+  frame), HEVC where the phone decodes it, at the panel's top refresh, with adaptive bitrate,
+  a choice of lowest-latency or smooth frame pacing, and a live chip showing the latency
+  from the PC's capture, frame rate and dropped frames. A Tailscale link streams over the
+  LAN when the PC is there. USB (adb on the PC, USB debugging on the phone) is used when
+  plugged in. Over Wi-Fi the PC's sound plays on the phone too, and by default keeps
+  playing on the PC (or goes to the phone alone, a switch in the PC's settings). The PC streams best with `ii-wf-recorder` (the shell's
+  `scripts/wf-recorder-ii/build.sh install`): key frames and bitrate changes without
+  restarting the encoder.
 - **Webcam:** the phone's camera as the PC's webcam (`/dev/videoN` via `ii_link`) over
   Stelnet Link, with lens, zoom, exposure, focus, torch and stabilisation controls, 4:3 or 16:9
-  (720p or 1080p). Keeps streaming with the screen off, and the PC can request the
+  (720p or 1080p). With the loopback device it also shows up as a PipeWire camera, so apps
+  that take cameras through PipeWire (Firefox, OBS) see it too. Keeps streaming with the screen off, and the PC can request the
   camera with the phone confirming from a notification.
 - **Microphone:** the phone as the PC's microphone over Stelnet Link (a PipeWire source
   `ii-tools-mic`, raw 48 kHz mono PCM) over Wi-Fi, from the Mic tool or on the PC's
@@ -272,7 +320,8 @@ The full contract is the shell's `scripts/iiLink/PROTOCOL.md`.
   and a talk timer.
 - **Touchpad and keyboard:** the phone as the PC's touchpad (a real multitouch touchpad
   for libinput: tap to click, two-finger scroll, three and four-finger gestures, your
-  touchpad settings) and keyboard (any character, whatever the PC's layout).
+  touchpad settings) and keyboard (any character, whatever the PC's layout). Touches carry
+  their timing, so the PC replays them smoothly over a slow or jittery link such as Tailscale.
 - **Phone files on the PC:** the PC's file manager opens the phone's storage (an SFTP
   server that runs only while the PC uses it, mounted with sshfs), as with KDE Connect.
   Needs *All files access*.
@@ -299,9 +348,12 @@ The full contract is the shell's `scripts/iiLink/PROTOCOL.md`.
   notification, and a notification when the PC locks while it plays. The PC's player is
   paused when the page opens. *Handoff* has its own switch. The other way, a phone app that gives
   its track a web page (or a Spotify URI) gets *Continue on PC* in the shell's phone tab.
-- **PC wallpaper on the phone (off by default):** *Use the PC's wallpaper* sets the PC's
-  wallpaper as the home and lock wallpaper (`SET_WALLPAPER`, a normal permission), centre-cropped
-  from a 3840 px original, again whenever the PC's changes. Material You follows the picture.
+- **PC wallpaper on the phone (off by default):** with *Use the PC's wallpaper* on, a new
+  PC wallpaper (a 3840 px original) opens the phone's own wallpaper app with it (One UI's
+  *Set as wallpaper*, else the launcher's or the system's cropper): crop it and choose
+  home, lock or both there, so the system, its colour palette and other apps all see the
+  change. From the background a notification opens it; *Apply the PC's wallpaper* on the
+  Wallpaper screen opens it again.
 - **Screen time and clipboard history:** the phone's screen time (usage access) appears in the
   PC's usage app (*PC / Phone / All*) and bedtime record, on by default once usage access is
   allowed; the PC's clipboard history can be browsed on the phone to pull an old copy.
@@ -392,6 +444,12 @@ A signed release comes from `./gradlew assembleRelease`, with the key in `keysto
 (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`; gitignored) or in the
 `II_KEYSTORE_FILE`, `II_KEYSTORE_PASSWORD`, `II_KEY_ALIAS` and `II_KEY_PASSWORD` environment
 variables. Without a key it is signed with the debug one, so anyone can build it.
+
+Releases are made by CI from a tag (`.github/workflows/release.yml`): bump `versionName` and
+`versionCode`, write `.github/releases/<version>.md` (its README has the format), commit, then
+`git tag v<version> && git push origin v<version>`. It builds the APK with the release key,
+checks the certificate, draws the banner (`tools/make-release-banner.py`) and publishes the
+release. Pushes to `master` never release.
     adb shell cmd notification allow_listener net.stelnet.tools/dev.ii.tools.live.LiveListener
     adb shell pm grant net.stelnet.tools android.permission.ACCESS_LOCAL_NETWORK
 
@@ -428,6 +486,7 @@ Stelnet Tools stands on other people's work:
 | [Sefirah](https://github.com/shrimqy/Sefirah-Android) | The media session code (`media/`) | GPL-3.0 |
 | [OkHttp](https://square.github.io/okhttp/) | The WebSocket and certificate pinning | Apache-2.0 |
 | [Apache MINA SSHD](https://mina.apache.org/sshd-project/) | The SFTP server the PC browses the phone with | Apache-2.0 |
+| [Shizuku API](https://github.com/RikkaApps/Shizuku-API) | Optional shell-level stats (CPU use, sensor temperatures, GPU) | Apache-2.0 |
 | [Jetpack Compose and Material 3](https://developer.android.com/jetpack/compose) | The UI, in Material 3 Expressive | Apache-2.0 |
 | [Material Symbols](https://github.com/google/material-design-icons) | Every icon (`rounded_*`) | Apache-2.0 |
 | [Google Sans Flex](https://fonts.google.com/specimen/Google+Sans+Flex) | The typeface (`res/font`), © Google LLC | SIL OFL 1.1 |

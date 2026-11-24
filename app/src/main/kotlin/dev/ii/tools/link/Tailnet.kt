@@ -25,8 +25,9 @@ object Tailnet {
     /** The VPN is up because this app turned it on: it may turn it off again. */
     private const val OURS = "ours"
 
-    /** 100.64.0.0/10, Tailscale's address range (CGNAT). */
+    /** Tailscale's addresses: 100.64.0.0/10 (CGNAT) and fd7a:115c:a1e0::/48. */
     fun isTailnet(host: String?): Boolean {
+        if (host?.lowercase()?.startsWith("fd7a:115c:a1e0:") == true) return true
         val p = host?.split('.')?.mapNotNull { it.toIntOrNull() } ?: return false
         return p.size == 4 && p[0] == 100 && p[1] in 64..127
     }

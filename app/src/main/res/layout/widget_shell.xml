@@ -282,6 +282,18 @@
             android:textColor="@color/wr_text"
             android:visibility="gone" />
 
+        <!-- A media widget's track position, counted by the launcher (Frame.elapsed). -->
+        <Chronometer
+            android:id="@+id/media_pos"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_gravity="top|start"
+            android:fontFamily="@font/jetbrains_mono_regular"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:textColor="@color/wr_text"
+            android:visibility="gone" />
+
         <FrameLayout
             android:id="@+id/h0"
             android:layout_width="0dp"

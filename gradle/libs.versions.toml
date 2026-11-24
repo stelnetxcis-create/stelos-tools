@@ -15,6 +15,8 @@ okhttp = "5.3.0"
 codeScanner = "16.1.0"
 # Browsing the phone's files from the PC: an SFTP server, as KDE Connect does.
 sshd = "2.20.1"
+# Shell-level stats (CPU use, sensor temperatures, GPU) through Shizuku, when the user runs it.
+shizuku = "13.1.5"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -32,6 +34,8 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhtt
 play-services-code-scanner = { group = "com.google.android.gms", name = "play-services-code-scanner", version.ref = "codeScanner" }
 apache-sshd-core = { group = "org.apache.sshd", name = "sshd-core", version.ref = "sshd" }
 apache-sshd-sftp = { group = "org.apache.sshd", name = "sshd-sftp", version.ref = "sshd" }
+shizuku-api = { group = "dev.rikka.shizuku", name = "api", version.ref = "shizuku" }
+shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizuku" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

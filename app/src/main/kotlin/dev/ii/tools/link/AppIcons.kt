@@ -48,6 +48,11 @@ object AppIcons {
         dir = File(app.filesDir, "app_icons")
     }
 
+    /** No screen shows icons: drop the decoded ones; a screen reloads them from disk. */
+    fun trim() {
+        if (_icons.value.isNotEmpty()) _icons.value = emptyMap()
+    }
+
     /** Synchronous disk read for the deck widget, which may run in a fresh process. */
     fun bitmapNow(name: String): Bitmap? {
         if (name.isEmpty() || !::dir.isInitialized) return null

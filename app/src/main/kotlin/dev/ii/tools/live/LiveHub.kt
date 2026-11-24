@@ -1,6 +1,12 @@
 package dev.ii.tools.live
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -20,7 +26,21 @@ object LiveHub {
     val connected: StateFlow<Boolean> = _connected.asStateFlow()
 
     private val _ongoing = MutableStateFlow<List<OngoingApp>>(emptyList())
+    /**
+     * Apps with an ongoing notification, for the per-app picker. Listing them reads every
+     * active notification, so the listener does it only while a screen collects this.
+     */
     val ongoing: StateFlow<List<OngoingApp>> = _ongoing.asStateFlow()
+
+    internal fun ongoingWatched(): Boolean = _ongoing.subscriptionCount.value > 0
+
+    init {
+        CoroutineScope(SupervisorJob() + Dispatchers.Main).launch {
+            _ongoing.subscriptionCount.map { it > 0 }.distinctUntilChanged().collect { seen ->
+                if (seen) listener?.listOngoingNow()
+            }
+        }
+    }
 
     /** Payloads currently on the shell, by source notification key. */
     private val _relayed = MutableStateFlow<Map<String, LivePayload>>(emptyMap())

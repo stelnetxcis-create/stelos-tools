@@ -104,7 +104,41 @@ class CameraCaps(val lenses: List<LensInfo>) {
 internal object Lenses {
     @Volatile private var cached: CameraCaps? = null
 
-    fun of(ctx: Context): CameraCaps = cached ?: read(ctx).also { cached = it }
+    /**
+     * Read once per system build and kept: the camera service's characteristics are slow to
+     * read and pull the camera framework into a process that, at every start, only needs
+     * to tell the PC what the lenses are.
+     */
+    fun of(ctx: Context): CameraCaps = cached ?: (load(ctx) ?: read(ctx).also { save(ctx, it) }).also { cached = it }
+
+    private const val PREFS = "webcam_lenses"
+
+    private fun load(ctx: Context): CameraCaps? = runCatching {
+        val p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (p.getString("build", null) != android.os.Build.FINGERPRINT) return null
+        val a = JSONArray(p.getString("lenses", null) ?: return null)
+        CameraCaps((0 until a.length()).map { i ->
+            val o = a.getJSONObject(i)
+            LensInfo(
+                o.getString("id"), o.getString("cameraId"), o.getDouble("ratio").toFloat(),
+                o.getDouble("zoomMin").toFloat(), o.getDouble("zoomMax").toFloat(),
+                o.getBoolean("hasTorch"), o.getBoolean("manualFocus"), o.getBoolean("stabilize"),
+            )
+        })
+    }.getOrNull()
+
+    private fun save(ctx: Context, caps: CameraCaps) {
+        // No lens read (the camera service busy or not up yet): try again next time.
+        if (caps.lenses.isEmpty()) return
+        val a = JSONArray()
+        caps.lenses.forEach { l ->
+            a.put(JSONObject().put("id", l.id).put("cameraId", l.cameraId).put("ratio", l.ratio.toDouble())
+                .put("zoomMin", l.zoomMin.toDouble()).put("zoomMax", l.zoomMax.toDouble())
+                .put("hasTorch", l.hasTorch).put("manualFocus", l.manualFocus).put("stabilize", l.stabilize))
+        }
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString("build", android.os.Build.FINGERPRINT).putString("lenses", a.toString()).apply()
+    }
 
     private fun read(ctx: Context): CameraCaps {
         val m = ctx.getSystemService(CameraManager::class.java)

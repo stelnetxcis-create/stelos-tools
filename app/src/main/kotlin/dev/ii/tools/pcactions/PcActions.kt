@@ -40,10 +40,16 @@ object PcActions {
     private val main = Handler(Looper.getMainLooper())
     private var ringtone: Ringtone? = null
     private var savedVolume = -1
+    private var ringing = false
+    private var stopTask: Runnable? = null
 
     fun handle(ctx: Context, m: JSONObject) {
+        val app = ctx.applicationContext
         when (m.optString("a")) {
-            "ring" -> main.post { ring(ctx) }
+            "ring" -> {
+                val on = m.optBoolean("on", true)
+                main.post { if (on) ring(app) else stopRingingOnMain(app, forceReport = true) }
+            }
             "ctl" -> dev.ii.tools.routines.PhoneControl.handle(ctx, m)
             "ping" -> notify(ctx, ctx.getString(R.string.act_ping, pcName()), m.optString("text").ifEmpty { null }, null)
             "url" -> {
@@ -67,6 +73,10 @@ object PcActions {
 
     private fun pcName() = LinkHub.askerName("act")
 
+    private fun reportRinging(on: Boolean) {
+        LinkHub.sendJson(JSONObject().put("t", "act").put("ringing", on))
+    }
+
     private fun channel(ctx: Context) {
         ctx.getSystemService(NotificationManager::class.java).createNotificationChannel(
             NotificationChannel(CHANNEL, ctx.getString(R.string.act_channel), NotificationManager.IMPORTANCE_HIGH),
@@ -87,55 +97,76 @@ object PcActions {
     // ── Find my phone ─────────────────────────────────────────────────────
 
     private fun ring(ctx: Context) {
-        if (ringtone?.isPlaying == true) return
-        val audio = ctx.getSystemService(AudioManager::class.java)
+        val app = ctx.applicationContext
+        if (ringing) {
+            reportRinging(true)
+            return
+        }
+        ringing = true
+        val audio = app.getSystemService(AudioManager::class.java)
         // Loud whatever the volume was; put back when found.
         savedVolume = audio.getStreamVolume(AudioManager.STREAM_ALARM)
         runCatching { audio.setStreamVolume(AudioManager.STREAM_ALARM, audio.getStreamMaxVolume(AudioManager.STREAM_ALARM), 0) }
-        val uri = RingtoneManager.getActualDefaultRingtoneUri(ctx, RingtoneManager.TYPE_ALARM)
+        val uri = RingtoneManager.getActualDefaultRingtoneUri(app, RingtoneManager.TYPE_ALARM)
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-        ringtone = RingtoneManager.getRingtone(ctx, uri)?.apply {
+        ringtone = RingtoneManager.getRingtone(app, uri)?.apply {
             audioAttributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).build()
             isLooping = true
             play()
         }
         runCatching {
-            ctx.getSystemService(VibratorManager::class.java).defaultVibrator
+            app.getSystemService(VibratorManager::class.java).defaultVibrator
                 .vibrate(VibrationEffect.createWaveform(longArrayOf(0, 800, 400), 0))
         }
-        val nm = ctx.getSystemService(NotificationManager::class.java)
+        val nm = app.getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(
-            NotificationChannel(RING_CHANNEL, ctx.getString(R.string.act_find_channel), NotificationManager.IMPORTANCE_HIGH).apply {
+            NotificationChannel(RING_CHANNEL, app.getString(R.string.act_find_channel), NotificationManager.IMPORTANCE_HIGH).apply {
                 setSound(null, null)
             },
         )
-        val found = PendingIntent.getBroadcast(ctx, 0, Intent(ctx, FoundReceiver::class.java).setAction(ACTION_FOUND), PendingIntent.FLAG_IMMUTABLE)
+        val found = PendingIntent.getBroadcast(app, 0, Intent(app, FoundReceiver::class.java).setAction(ACTION_FOUND), PendingIntent.FLAG_IMMUTABLE)
         nm.notify(
             RING_ID,
-            Notification.Builder(ctx, RING_CHANNEL)
+            Notification.Builder(app, RING_CHANNEL)
                 .setSmallIcon(R.drawable.rounded_desktop_windows)
-                .setContentTitle(ctx.getString(R.string.act_find_title))
-                .setContentText(ctx.getString(R.string.act_find_body, pcName()))
+                .setContentTitle(app.getString(R.string.act_find_title))
+                .setContentText(app.getString(R.string.act_find_body, pcName()))
                 .setOngoing(true)
                 .setCategory(Notification.CATEGORY_ALARM)
                 .setContentIntent(found)
                 .setDeleteIntent(found)
-                .addAction(Notification.Action.Builder(null, ctx.getString(R.string.act_found), found).build())
+                .addAction(Notification.Action.Builder(null, app.getString(R.string.act_found), found).build())
                 .build(),
         )
-        main.postDelayed({ stopRinging(ctx) }, RING_MS)
+        stopTask?.let(main::removeCallbacks)
+        stopTask = Runnable { stopRingingOnMain(app, forceReport = false) }.also { main.postDelayed(it, RING_MS) }
+        reportRinging(true)
     }
 
     fun stopRinging(ctx: Context) {
-        main.removeCallbacksAndMessages(null)
+        val app = ctx.applicationContext
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            main.post { stopRingingOnMain(app, forceReport = false) }
+            return
+        }
+        stopRingingOnMain(app, forceReport = false)
+    }
+
+    private fun stopRingingOnMain(app: Context, forceReport: Boolean) {
+        stopTask?.let(main::removeCallbacks)
+        stopTask = null
         ringtone?.stop()
         ringtone = null
-        runCatching { ctx.getSystemService(VibratorManager::class.java).defaultVibrator.cancel() }
+        runCatching { app.getSystemService(VibratorManager::class.java).defaultVibrator.cancel() }
         if (savedVolume >= 0) {
-            runCatching { ctx.getSystemService(AudioManager::class.java).setStreamVolume(AudioManager.STREAM_ALARM, savedVolume, 0) }
+            runCatching { app.getSystemService(AudioManager::class.java).setStreamVolume(AudioManager.STREAM_ALARM, savedVolume, 0) }
             savedVolume = -1
         }
-        ctx.getSystemService(NotificationManager::class.java).cancel(RING_ID)
+        app.getSystemService(NotificationManager::class.java).cancel(RING_ID)
+        if (ringing || forceReport) {
+            ringing = false
+            reportRinging(false)
+        }
     }
 
     // ── Files from the Phone tab ──────────────────────────────────────────

@@ -107,6 +107,7 @@ fun PhoneDataScreen(onBack: () -> Unit) {
                     onCheckedChange = toggle,
                     icon = R.drawable.rounded_battery_full,
                 )
+                ShellStatsRow(enabled = enabled)
                 SwitchRow(
                     title = stringResource(R.string.usage_share),
                     checked = usageEnabled,

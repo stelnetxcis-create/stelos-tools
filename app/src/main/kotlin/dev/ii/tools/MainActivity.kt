@@ -28,6 +28,8 @@ import dev.ii.tools.ui.GalleryScreen
 import dev.ii.tools.ui.HomeScreen
 import dev.ii.tools.ui.CameraScreen
 import dev.ii.tools.ui.Dest
+import dev.ii.tools.ui.FocusScreen
+import dev.ii.tools.ui.VoiceScreen
 import dev.ii.tools.ui.SecondScreenScreen
 import dev.ii.tools.ui.SettingsScreen
 import dev.ii.tools.ui.ToolsScreen
@@ -75,6 +77,8 @@ private fun activityFor(dest: Dest): Class<out ScreenActivity> = when (dest) {
     Dest.DRAW -> DrawActivity::class.java
     Dest.PRESENTER -> PresenterActivity::class.java
     Dest.PERF -> PerfActivity::class.java
+    Dest.FOCUS -> FocusActivity::class.java
+    Dest.VOICE -> VoiceActivity::class.java
     Dest.CAMERA -> CameraActivity::class.java
     Dest.MIC -> MicActivity::class.java
     Dest.SECOND_SCREEN -> SecondScreenActivity::class.java
@@ -373,6 +377,18 @@ class TouchpadActivity : ScreenActivity() {
 class PerfActivity : ScreenActivity() {
     @Composable
     override fun Screen() = PerfScreen(onBack = ::finish)
+}
+
+/** Focus & timers: pomodoro, timers, stopwatch, ringing alarm. */
+class FocusActivity : ScreenActivity() {
+    @Composable
+    override fun Screen() = FocusScreen(onBack = ::finish)
+}
+
+/** Voice and meeting console: Discord call, PC mic, app volume and active sensors. */
+class VoiceActivity : ScreenActivity() {
+    @Composable
+    override fun Screen() = VoiceScreen(onBack = ::finish, onOpen = ::open)
 }
 
 /** Every tool, grouped. */

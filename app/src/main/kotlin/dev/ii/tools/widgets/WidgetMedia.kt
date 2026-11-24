@@ -24,9 +24,10 @@ import kotlinx.coroutines.launch
 /**
  * What plays on the phone, for the media widgets: any app's media session, read through
  * the notification listener (Android's gate for other apps' sessions). While a media
- * widget is placed it follows the sessions and redraws on a new track or state; the
- * progress ticks once a second only while something plays and the screen is on, and
- * then redraws the seek line alone (a partial update of a few small layers).
+ * widget is placed it follows the sessions and redraws on a new track or state. The
+ * position label is a Chronometer the launcher counts; the seek line and ring step only
+ * while something plays and the screen is on, about a hundred steps per track (every 1 to
+ * 5 s), as a partial update of a few small layers.
  */
 object WidgetMedia {
     val WIDGETS: Array<Class<out MediaWidget>> = arrayOf(
@@ -63,14 +64,19 @@ object WidgetMedia {
         val progress: Float get() = if (durationMs > 0) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
         /** The art (the cover) changes the layout: a track key for it. */
         val positionText get() = time(positionMs)
-        val lengthText get() = if (hasLength) time(durationMs) else "–:––"
+        val lengthText get() = if (hasLength) time(durationMs) else "––:––"
     }
+
+    private const val TICK_MIN_MS = 1_000L
+    private const val TICK_MAX_MS = 5_000L
 
     private val main = Handler(Looper.getMainLooper())
     private var app: Context? = null
     private var manager: MediaSessionManager? = null
     private val watched = mutableListOf<MediaController>()
     private var screenOn = true
+    /** Something changed while the screen was off. */
+    private var dirty = false
     private var screenReceiver: BroadcastReceiver? = null
 
     private val sessionsChanged = MediaSessionManager.OnActiveSessionsChangedListener { follow(it.orEmpty()) }
@@ -151,6 +157,7 @@ object WidgetMedia {
         main.post {
             if (!ShellWidget.placed(c, *WIDGETS)) return@post stop()
             app = c
+            if (screenReceiver == null) screenOn = c.getSystemService(PowerManager::class.java).isInteractive
             if (manager == null) runCatching {
                 val m = c.getSystemService(MediaSessionManager::class.java)
                 m.addOnActiveSessionsChangedListener(sessionsChanged, component(c), main)
@@ -162,7 +169,15 @@ object WidgetMedia {
                 screenReceiver = object : BroadcastReceiver() {
                     override fun onReceive(context: Context, intent: Intent) {
                         screenOn = intent.action == Intent.ACTION_SCREEN_ON
-                        if (screenOn) changed() else main.removeCallbacks(tick)
+                        when {
+                            !screenOn -> main.removeCallbacks(tick)
+                            dirty -> {
+                                dirty = false
+                                changed()
+                            }
+                            // The seek line moved on while it was dark; the clock counted by itself.
+                            else -> main.post(tick)
+                        }
                     }
                 }.also {
                     c.registerReceiver(it, IntentFilter().apply { addAction(Intent.ACTION_SCREEN_ON); addAction(Intent.ACTION_SCREEN_OFF) })
@@ -193,6 +208,11 @@ object WidgetMedia {
 
     /** A burst of callbacks (a new track sends several) makes one redraw. */
     private fun changed() {
+        // Nobody sees a widget with the screen off: draw once when it comes on.
+        if (!screenOn) {
+            dirty = true
+            return
+        }
         main.removeCallbacks(redraw)
         main.postDelayed(redraw, 150)
     }
@@ -202,9 +222,10 @@ object WidgetMedia {
         val c = app ?: return
         val st = watched.firstNotNullOfOrNull { c -> c.playbackState?.takeIf { it.state == PlaybackState.STATE_PLAYING } } ?: return
         if (!screenOn || !ShellWidget.placed(c, *TICKING)) return
-        // On the next whole second of the track, so the time label steps evenly.
-        val pos = st.position + ((SystemClock.elapsedRealtime() - st.lastPositionUpdateTime) * st.playbackSpeed).toLong()
-        main.postDelayed(tick, 1000 - Math.floorMod(pos, 1000L) + 20)
+        // A step of about 1 % of the track: what a seek line or ring can show.
+        val length = watched.firstNotNullOfOrNull { mc -> mc.metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION)?.takeIf { it > 0 } } ?: 0L
+        val step = (length / 100).coerceIn(TICK_MIN_MS, TICK_MAX_MS)
+        main.postDelayed(tick, step)
     }
 
     private fun tickNow(ctx: Context) {
@@ -220,7 +241,11 @@ object WidgetMedia {
                         val (w, h) = widget.box(ctx, manager.getAppWidgetOptions(id))
                         val f = Frame(ctx, widget.designW, widget.designH, w, h, partial = true, stretch = widget.stretch)
                         widget.drawProgress(ctx, f, m)
-                        manager.partiallyUpdateAppWidget(id, f.views)
+                        try {
+                            manager.partiallyUpdateAppWidget(id, f.views)
+                        } finally {
+                            f.recycle()
+                        }
                     }
                 }
             }
@@ -230,7 +255,8 @@ object WidgetMedia {
     private fun time(ms: Long): String {
         val s = ms / 1000
         val h = s / 3600
-        return if (h > 0) "%d:%02d:%02d".format(h, (s % 3600) / 60, s % 60) else "%d:%02d".format(s / 60, s % 60)
+        // Chronometer's own format (DateUtils.formatElapsedTime), so the length matches the position beside it.
+        return if (h > 0) "%d:%02d:%02d".format(h, (s % 3600) / 60, s % 60) else "%02d:%02d".format(s / 60, s % 60)
     }
 }
 

@@ -94,7 +94,8 @@ class ScreenStream(
             s.connect(InetSocketAddress("127.0.0.1", port), 5000)
             socket = s
             out = s.getOutputStream().also { it.write("$token\n".toByteArray()); it.flush() }
-            val dec = ScreenDecoder(width, height, surface) {
+            val metrics = StreamMetrics()
+            val dec = ScreenDecoder(width, height, surface, metrics, smooth = { SecondScreen.smooth }) {
                 running = false
                 runCatching { socket?.close() }
             }
@@ -109,6 +110,7 @@ class ScreenStream(
                 val n = len - 9
                 if (buf.size < n) buf = ByteArray(n)
                 inp.readFully(buf, 0, n)
+                metrics.received(pts)
                 dec.feed(kind, pts, buf, 0, n)
             }
         } catch (_: Exception) {

@@ -100,6 +100,9 @@ object ClipHistory {
 
     fun cachedThumb(id: String): ImageBitmap? = memThumbs.get(id)
 
+    /** No screen shows the history: its thumbnails can go (the disk cache stays). */
+    fun trim() = memThumbs.evictAll()
+
     fun refresh() {
         if (!LinkHub.supportsClipHistory()) return
         if (_entries.value.isEmpty()) _loading.value = true

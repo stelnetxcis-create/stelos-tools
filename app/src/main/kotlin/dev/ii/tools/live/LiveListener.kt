@@ -135,7 +135,7 @@ class LiveListener : NotificationListenerService() {
         for (own in nm.activeNotifications) {
             if (own.tag == MIRROR_TAG && own.id !in live) nm.cancel(MIRROR_TAG, own.id)
         }
-        publishOngoing()
+        if (LiveHub.ongoingWatched()) publishOngoing()
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
@@ -239,8 +239,20 @@ class LiveListener : NotificationListenerService() {
     }
 
     private fun scheduleOngoingRefresh() {
+        if (!LiveHub.ongoingWatched()) return
         handler.removeCallbacks(refreshOngoing)
         handler.postDelayed(refreshOngoing, ONGOING_REFRESH_MS)
+    }
+
+    /** Memory is short: app icons are read again for the next relay copy. */
+    internal fun trim() {
+        handler.post { icons.clear() }
+    }
+
+    /** The picker came on screen: list the ongoing apps now. */
+    internal fun listOngoingNow() {
+        handler.removeCallbacks(refreshOngoing)
+        handler.post(refreshOngoing)
     }
 
     /** One row per app with an ongoing notification, for the per-app picker. */

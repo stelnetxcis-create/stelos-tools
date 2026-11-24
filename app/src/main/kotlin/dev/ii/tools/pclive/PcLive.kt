@@ -10,6 +10,7 @@ import android.content.Intent
 import android.graphics.drawable.Icon
 import android.os.Build
 import dev.ii.tools.R
+import dev.ii.tools.focus.FocusHub
 import dev.ii.tools.link.LinkHub
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,6 +37,16 @@ data class PcLiveItem(
     val total: Long,
     val progress: Int,
     val actions: List<Pair<String, String>>,
+    /** Pomodoro phase: "focus" | "break" | "longBreak" | "". */
+    val phase: String = "",
+    /** 0-based current pomodoro cycle. */
+    val cycle: Int = 0,
+    /** Total pomodoro cycles before a long break. */
+    val cycles: Int = 0,
+    /** Elapsed ms when a stopwatch is paused (-1 when absent). */
+    val elapsedMs: Long = -1L,
+    /** Cumulative stopwatch lap times in ms. */
+    val laps: List<Long> = emptyList(),
 ) {
     companion object {
         fun from(o: JSONObject) = PcLiveItem(
@@ -52,6 +63,14 @@ data class PcLiveItem(
             actions = buildList {
                 val a = o.optJSONArray("actions")
                 if (a != null) for (i in 0 until a.length()) a.optJSONObject(i)?.let { add(it.optString("id") to it.optString("label")) }
+            },
+            phase = o.optString("phase"),
+            cycle = o.optInt("cycle"),
+            cycles = o.optInt("cycles"),
+            elapsedMs = if (o.has("elapsedMs") && !o.isNull("elapsedMs")) o.optLong("elapsedMs", -1L) else -1L,
+            laps = buildList {
+                val l = o.optJSONArray("laps")
+                if (l != null) for (i in 0 until l.length()) add(l.optLong(i))
             },
         )
     }
@@ -79,6 +98,7 @@ object PcLive {
 
     private fun publish() {
         _items.value = shown.values.map(PcLiveItem::from)
+        FocusHub.onLiveConfirmed()
     }
 
     /** A button on the home's live card, like the notification's. */

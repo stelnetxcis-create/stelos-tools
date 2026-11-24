@@ -3,9 +3,15 @@ package dev.ii.tools.link
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import java.io.File
 
 /**
@@ -13,6 +19,10 @@ import java.io.File
  * shown behind the home's PC card. The shell sends a small JPEG once per image, then
  * names it in the `look` topic; the last one stays on disk for when the PC is away.
  * Each paired PC keeps its own; the card shows the one of the PC the home controls.
+ *
+ * The image is decoded only while a screen collects [wallpaper], in plain memory, and let
+ * go when it stops: the link's process lives on in the background with no screen, and a
+ * hardware bitmap there would start the GPU driver for nothing.
  */
 object Look {
     private const val PREFS = "look"
@@ -25,8 +35,25 @@ object Look {
     /** The image the shown PC names, and that PC's fingerprint. */
     @Volatile private var name = ""
     @Volatile private var shown = ""
+    private var app: Context? = null
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    private fun watch(c: Context) {
+        if (app != null) return
+        app = c.applicationContext
+        scope.launch {
+            _wallpaper.subscriptionCount.map { it > 0 }.distinctUntilChanged().collect { seen ->
+                synchronized(this@Look) {
+                    if (seen) app?.let { decode(it) } else _wallpaper.value = null
+                }
+            }
+        }
+    }
 
     fun caps(): List<String> = listOf("look")
+
+    /** The images kept, for `caps.have`: the shell does not send them again. */
+    fun have(c: Context): List<String> = dir(c).listFiles()?.map { it.name }.orEmpty()
 
     private fun dir(c: Context) = File(c.filesDir, "look").apply { mkdirs() }
     private fun prefs(c: Context) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -34,6 +61,7 @@ object Look {
     /** The PC the home shows changed: its last wallpaper, from disk (the link's IO thread). */
     @Synchronized
     fun select(c: Context, pc: String?) {
+        watch(c)
         shown = pc.orEmpty()
         name = ""
         _wallpaper.value = null
@@ -72,11 +100,16 @@ object Look {
 
     private fun show(c: Context, wall: String) {
         name = wall
-        val f = File(dir(c), wall)
+        if (_wallpaper.subscriptionCount.value > 0) decode(c)
+    }
+
+    private fun decode(c: Context) {
+        val f = File(dir(c), name.ifEmpty { return })
         if (!f.isFile) return // the file comes first; it shows when it lands
         val bitmap = runCatching {
             ImageDecoder.decodeBitmap(ImageDecoder.createSource(f)) { decoder, info, _ ->
                 decoder.setTargetSampleSize((maxOf(info.size.width, info.size.height) / MAX_PX).coerceAtLeast(1))
+                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
             }
         }.getOrNull() ?: return
         _wallpaper.value = bitmap

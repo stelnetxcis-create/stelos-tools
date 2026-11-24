@@ -49,8 +49,17 @@ object HomeCards {
     const val DISPLAY = "display"
     const val WEBCAM = "webcam"
     const val PERF = "perf"
+    const val FOCUS = "focus"
+    const val VOICE = "voice"
     const val MIC = "mic"
     const val CLIP = "clip"
+    const val WORKSPACES = "workspaces"
+    const val MODES = "modes"
+    const val PRESETS = "presets"
+    const val TOUCHPAD = "touchpad"
+    const val PRESENTER = "presenter"
+    const val DECK = "deck"
+    const val POWER = "power"
 
     val all: List<HomeCardDef> = listOf(
         // The PC hero stays pinned as removable=false: it identifies the connected PC,
@@ -65,8 +74,18 @@ object HomeCards {
         HomeCardDef(DISPLAY, R.string.remote_display, R.string.home_card_display_desc, R.drawable.rounded_brightness_6),
         HomeCardDef(WEBCAM, R.string.webcam_title, R.string.home_card_webcam_desc, R.drawable.rounded_videocam),
         HomeCardDef(PERF, R.string.home_pc_load, R.string.home_card_perf_desc, R.drawable.rounded_speed),
+        HomeCardDef(FOCUS, R.string.focus_title, R.string.home_card_focus_desc, R.drawable.rounded_hourglass_top),
+        HomeCardDef(VOICE, R.string.voice_title, R.string.home_card_voice_desc, R.drawable.rounded_record_voice_over),
         HomeCardDef(MIC, R.string.mic_title, R.string.home_card_mic_desc, R.drawable.rounded_mic),
         HomeCardDef(CLIP, R.string.home_clip_title, R.string.home_card_clip_desc, R.drawable.rounded_content_paste),
+        // Control cards: off by default so the home stays short; added from the editor.
+        HomeCardDef(WORKSPACES, R.string.remote_workspaces, R.string.home_card_workspaces_desc, R.drawable.rounded_grid_view, defaultVisible = false),
+        HomeCardDef(MODES, R.string.home_card_modes, R.string.home_card_modes_desc, R.drawable.rounded_routine, defaultVisible = false),
+        HomeCardDef(PRESETS, R.string.remote_presets, R.string.home_card_presets_desc, R.drawable.rounded_palette, defaultVisible = false),
+        HomeCardDef(TOUCHPAD, R.string.touchpad_title, R.string.home_card_touchpad_desc, R.drawable.rounded_touch_app, defaultVisible = false),
+        HomeCardDef(PRESENTER, R.string.present_title, R.string.home_card_presenter_desc, R.drawable.rounded_co_present, defaultVisible = false),
+        HomeCardDef(DECK, R.string.deck_title, R.string.home_card_deck_desc, R.drawable.rounded_dashboard, defaultVisible = false),
+        HomeCardDef(POWER, R.string.remote_power, R.string.home_card_power_desc, R.drawable.rounded_power_settings_new, defaultVisible = false),
     )
 
     val byId: Map<String, HomeCardDef> = all.associateBy { it.id }

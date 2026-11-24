@@ -5,7 +5,9 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.os.SystemClock
 import android.util.TypedValue
+import android.view.Gravity
 import android.view.View
 import android.widget.RemoteViews
 import androidx.annotation.ColorRes
@@ -65,6 +67,18 @@ class Frame(
     private val renderScale = scale * min(1f, MAX_SIDE / (max(w, h) * scale))
     private var next = 0
     private var nextTap = 0
+    /** The bitmaps this frame drew, freed by [recycle] once the launcher has its copy. */
+    private val made = ArrayList<Bitmap>()
+
+    /**
+     * Frees the layers' pixels now, after `updateAppWidget` has sent them (the binder call
+     * copies them): otherwise they wait in the native heap for a Java GC that a mostly idle
+     * process seldom runs.
+     */
+    fun recycle() {
+        made.forEach { it.recycle() }
+        made.clear()
+    }
 
     init {
         if (!partial) {
@@ -108,6 +122,23 @@ class Frame(
         return id
     }
 
+    /**
+     * A track position the launcher counts by itself (a Chronometer in JetBrains Mono, like
+     * [Fonts.mono]): ([x], [y], [w], [h]) in design units, [size] the text size, right aligned
+     * when [end]. It shows [elapsedMs] now and runs on while [running], so a playing track
+     * needs no redraw every second for its clock.
+     */
+    fun elapsed(role: Role, x: Float, y: Float, w: Float, h: Float, size: Float, elapsedMs: Long, running: Boolean, end: Boolean = false) {
+        val id = R.id.media_pos
+        if (!partial) {
+            position(id, x, y, w, h)
+            views.setColorStateList(id, "setTextColor", role.color)
+            views.setTextViewTextSize(id, TypedValue.COMPLEX_UNIT_PX, size * scale)
+            views.setInt(id, "setGravity", (if (end) Gravity.END else Gravity.START) or Gravity.CENTER_VERTICAL)
+        }
+        views.setChronometer(id, SystemClock.elapsedRealtime() - elapsedMs, null, running)
+    }
+
     /** A tap zone over ([x], [y], [w], [h]) with its ripple rounded to [radius]. */
     fun tap(x: Float, y: Float, w: Float, h: Float, radius: Float, intent: PendingIntent?) {
         if (partial || intent == null || nextTap >= TAPS.size) return
@@ -147,6 +178,7 @@ class Frame(
         val bw = max(1, ((ceil((x + w) * scale) - px0) * k).toInt())
         val bh = max(1, ((ceil((y + h) * scale) - py0) * k).toInt())
         val bmp = createBitmap(bw, bh, config)
+        made += bmp
         Canvas(bmp).apply {
             scale(k, k)
             translate(-px0, -py0)

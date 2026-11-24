@@ -123,7 +123,7 @@ class DeckMediaWidget : MediaWidget() {
         val times = Fonts.mono(ctx, Px.SMALLER)
         val labelW = times.measureText(m.lengthText)
         val ty = seekCy - times.lineHeight() / 2
-        f.layer(Role.TEXT, panelX, ty, labelW, times.lineHeight(), SLOT_POSITION) { textTop(m.positionText, panelX, ty, times) }
+        f.elapsed(Role.TEXT, panelX, ty, labelW, times.lineHeight(), Px.SMALLER, m.positionMs, m.playing)
         val right = width - padding
         f.layer(Role.SUBTEXT, right - labelW, ty, labelW, times.lineHeight(), SLOT_LENGTH) {
             textRight(m.lengthText, right, ty + times.ascentPx(), times)

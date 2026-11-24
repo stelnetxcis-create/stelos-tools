@@ -1,6 +1,8 @@
 package dev.ii.tools.screen
 
 import android.content.Context
+import android.hardware.display.DisplayManager
+import android.view.Display
 import android.view.WindowManager
 import dev.ii.tools.link.LinkHub
 import dev.ii.tools.link.LinkStatus
@@ -28,11 +30,18 @@ data class ScreenPrefs(
     val adaptive: Boolean = true,
     /** Last session input mode: "touch" or "pad". */
     val input: String = "touch",
+    /** The stream's codec: "hevc" (the default where the phone decodes it) or "h264". */
+    val codec: String = "hevc",
     /** Extended output orientation: "landscape" or "portrait". */
     val orient: String = "landscape",
     /** Docked toolbar edge ("LEFT", "RIGHT", "TOP", "BOTTOM") and handle fraction 0–1. */
     val barEdge: String = "RIGHT",
     val barAt: Float = 0.3f,
+    /**
+     * Frame pacing: false shows each frame the moment it is decoded (the least latency),
+     * true a steady delay after its capture, so Wi-Fi's jitter doesn't show as uneven motion.
+     */
+    val smooth: Boolean = false,
 )
 
 /** Live stream telemetry while a Wi-Fi second-screen session is active. */
@@ -44,6 +53,14 @@ data class ScreenStats(
     val dropped: Int = 0,
     val rttMs: Int? = null,
     val transport: String = "wifi",
+    /** PC capture → decoded here, p50 ms (the screen is about a refresh after). */
+    val latencyMs: Int? = null,
+    /** Its parts, ms: the PC's capture → send, the network, and received → decoded here. */
+    val pcMs: Int? = null,
+    val networkMs: Int? = null,
+    val phoneMs: Int? = null,
+    /** Frames decoded here in the last second. */
+    val shownFps: Int? = null,
 )
 
 /** One of the PC's screens, for mirror's choice. */
@@ -138,8 +155,13 @@ object SecondScreen {
         LinkHub.sendJson(JSONObject().put("t", "screen").put("a", "launcher"))
     }
 
-    /** Request routing PC audio to the phone (or back) during a Wi-Fi session. */
+    /**
+     * Request routing PC audio to the phone (or back) during a Wi-Fi session. The switch
+     * moves at once; the PC's answer (on its first sound packet, or a refusal) confirms it.
+     */
     fun setAudio(on: Boolean) {
+        _audio.value = on
+        if (!on) (activeSession as? ScreenSocket)?.audioOff()
         LinkHub.sendJson(JSONObject().put("t", "screen").put("a", "audio").put("on", on))
     }
 
@@ -150,6 +172,18 @@ object SecondScreen {
 
     private const val PREFS = "second_screen"
     private val _prefs = MutableStateFlow<ScreenPrefs?>(null)
+
+    /** The stream rates the PC takes (PhoneScreenService), highest first. */
+    private val FPS_STEPS = listOf(120, 90, 60, 30)
+
+    /** The rates this phone's display can show, highest first: the first is the default. */
+    fun fpsChoices(ctx: Context): List<Int> {
+        val modes = ctx.getSystemService(DisplayManager::class.java)
+            ?.getDisplay(Display.DEFAULT_DISPLAY)?.supportedModes.orEmpty()
+        val max = modes.maxOfOrNull { it.refreshRate } ?: 60f
+        // 119.9 Hz panels count as 120.
+        return FPS_STEPS.filter { it <= max + 1f }.ifEmpty { listOf(FPS_STEPS.last()) }
+    }
 
     fun prefs(ctx: Context): StateFlow<ScreenPrefs?> {
         appCtx = ctx.applicationContext
@@ -170,7 +204,11 @@ object SecondScreen {
             val barAt = p.getFloat("barAt", 0.3f).coerceIn(0f, 1f)
             _prefs.value = ScreenPrefs(
                 res = p.getFloat("res", 1f),
-                fps = p.getInt("fps", 60),
+                // The display's highest rate unless one was picked: saving any setting wrote
+                // `fps` too, so a stored value alone is not a choice.
+                fps = fpsChoices(ctx).let { choices ->
+                    p.getInt("fps", 0).takeIf { p.getBoolean("fpsChosen", false) && it in choices } ?: choices.first()
+                },
                 scale = p.getFloat("scale", 1.5f),
                 side = p.getString("side", "right") ?: "right",
                 bitrate = p.getInt("bitrate", 16),
@@ -179,8 +217,11 @@ object SecondScreen {
                 adaptive = p.getBoolean("adaptive", true),
                 input = input,
                 orient = orient,
+                codec = p.getString("codec", null).takeIf { it == "hevc" || it == "h264" }
+                    ?: if (hevcSupported()) "hevc" else "h264",
                 barEdge = barEdge,
                 barAt = barAt,
+                smooth = p.getBoolean("smooth", false),
             )
         }
         return _prefs.asStateFlow()
@@ -188,14 +229,19 @@ object SecondScreen {
 
     fun setPrefs(ctx: Context, v: ScreenPrefs) {
         appCtx = ctx.applicationContext
+        val fpsChanged = _prefs.value?.let { it.fps != v.fps } ?: false
         _prefs.value = v
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .apply { if (fpsChanged) putBoolean("fpsChosen", true) }
             .putFloat("res", v.res).putInt("fps", v.fps).putFloat("scale", v.scale)
             .putString("side", v.side).putInt("bitrate", v.bitrate).putString("mirror", v.mirror)
             .putString("transport", v.transport).putBoolean("adaptive", v.adaptive)
-            .putString("input", v.input).putString("orient", v.orient)
-            .putString("barEdge", v.barEdge).putFloat("barAt", v.barAt).apply()
+            .putString("input", v.input).putString("orient", v.orient).putString("codec", v.codec)
+            .putString("barEdge", v.barEdge).putFloat("barAt", v.barAt).putBoolean("smooth", v.smooth).apply()
     }
+
+    /** Frame pacing ([ScreenPrefs.smooth]), read by the decoder on every frame. */
+    val smooth: Boolean get() = _prefs.value?.smooth ?: false
 
     /** Updates live bitrate/adaptive over the side socket (when on Wi-Fi) and persists prefs. */
     fun setQuality(bitrateMbps: Int, adaptive: Boolean) {
@@ -238,6 +284,8 @@ object SecondScreen {
                 .put("res", p.res.toDouble()).put("fps", p.fps).put("scale", p.scale.toDouble())
                 .put("side", p.side).put("bitrate", p.bitrate).put("output", p.mirror)
                 .put("transport", transport).put("adaptive", p.adaptive)
+                // HEVC needs a decoder for it; the PC falls back to H.264 without an encoder.
+                .put("codec", if (p.codec == "hevc" && hevcSupported()) "hevc" else "h264")
                 .apply { if (mode == "extend") put("orient", p.orient) },
         )
     }

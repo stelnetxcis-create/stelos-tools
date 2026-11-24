@@ -57,6 +57,8 @@ private val control = listOf(
     Tool(Dest.DRAW, R.drawable.rounded_draw, R.string.draw_title),
     Tool(Dest.PRESENTER, R.drawable.rounded_co_present, R.string.present_title),
     Tool(Dest.PERF, R.drawable.rounded_speed, R.string.perf_title),
+    Tool(Dest.FOCUS, R.drawable.rounded_hourglass_top, R.string.focus_title),
+    Tool(Dest.VOICE, R.drawable.rounded_record_voice_over, R.string.voice_title),
 )
 
 private val sync = listOf(
